@@ -1,0 +1,22 @@
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", sans-serif;
+  background: #eef4f7;
+  color: #153041;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(121, 183, 214, 0.22), transparent 28%),
+    linear-gradient(180deg, #eef4f7 0%, #f7fafc 100%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
