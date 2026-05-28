@@ -1,49 +1,42 @@
 # Task Board
 
-Last updated: `2026-05-15`
+Last updated: `2026-05-26`
 
-## In progress
+## Completed
 
-- [ ] 继续推进单片机网页控制主目标：实现 Supabase 持久化命令写入与设备状态读写闭环
+- [x] 生命周期策略端到端打通（API GET + lifecycle-tick + SSR 状态栏 + 客户端轮询）
+- [x] DeviceCommandClient 精简重构：单个轮询 effect（SSR 数据直出无闪白 + 轮询错误提示）
+- [x] 设备页 SSR 去除冗余状态栏（统一到 DeviceCommandClient 内部控制态势面板）
+- [x] operatorMsg 文案统一 + 离线态/错误态覆盖
+- [x] 测试更新：3 个新用例覆盖 SSR 数据渲染 / retry count / offline message
+- [x] homes 页 SSR 首屏数据直出 + 客户端 15s 轮询
+- [x] Landing 页产品化改写
+- [x] 创建设备上行 ingest API: `POST /api/devices/[deviceId]/ingest`
+- [x] DeviceBackend 接口补 applyAckByCorrelationId（ESP32 只知道 correlationId）
+- [x] 创建 `docs/hardware/integration-guide.md` 硬件集成接入文档
+- [x] Supabase schema/type 补 attempt_count / next_retry_at
+- [x] 死代码清理 + lint 归零
 
-## Highest priority next
+## 硬件端（待 ESP32/STM32 固件开发）
 
-- [x] Remove repository leftovers like `apps/write-test.txt`
-- [x] Create `supabase/` structure with schema and migration skeleton for homes, rooms, devices, state, commands, telemetry, provisioning, and audit logs
-- [x] Add a persistence-ready server abstraction so the current in-memory runtime is not the only backend path
-- [x] Add missing tests for offline command behavior, missing device behavior, and command status rendering
-- [x] Rerun `npm run test`
-- [x] Rerun `npm run lint`
-- [x] Rerun `npm run build`
-- [x] Perform browser-based QA against `/homes` and `/devices/device-relay-01`
-  Completed via Playwright fallback. Browser plugin path still pending as a separate plugin-specific outcome.
-- [x] Advance `Supabase` from planned architecture to actual repo structure and schema files
-- [x] Keep `Superpowers` TDD and verification discipline active on new work
-- [x] Use `Build Web Apps` workflow for frontend verification after UI edits
-- [ ] Supabase-backed schema or verified local equivalent
-- [ ] Replace placeholder `SupabaseDeviceBackend` reads with real Supabase-backed device snapshot reads
-- [ ] Replace placeholder `SupabaseDeviceBackend` command writes with real persistence flow
-- [x] Browser-based visual and interaction QA evidence
-  Completed with Playwright fallback artifacts in `output/playwright/`.
-- [ ] Vercel or Netlify deployment preparation
-- [ ] Sentry monitoring setup
-- [ ] Figma structured design handoff
-- [ ] Linear task sync
-- [ ] GitHub publish flow
-- [ ] Canva or image asset generation where truly needed
-- [ ] Remotion or HyperFrames promo video
+- [ ] ESP32S3: WiFi 连接 + HTTP POST 上报 ack/遥测到 ingest 端点
+- [ ] ESP32S3: 实现 UART 帧编码，发送命令到 STM32
+- [ ] STM32H743: UART 中断接收 + 帧解析 + GPIO 控制 + ack 回传
+- [ ] 命令下行通道（MQTT 或 HTTP 轮询）
+- [ ] 设备 Token 认证
 
-## Deferred until core product is stronger
+## Backend
 
-- [ ] Real ESP32S3 cloud bridge implementation
-- [ ] Real STM32H743 ack path implementation
-- [ ] Provisioning UX beyond stub level
-- [ ] Marketing and promo deliverables
+- [ ] 接入 Supabase 项目，执行迁移
+- [ ] SupabaseDeviceBackend 替换为真实读写
+- [ ] Auth 流程
 
-## Process note
+## Frontend
 
-- Plugin workflows are selective, not default-on.
-- Reuse the existing global `plugin-routing-playbook` when plugin routing is actually needed.
-- Do not grow repo `AGENTS.md` with plugin-routing rules.
-- Future agents should default to autonomous multi-step execution tranches instead of repeated progress-only chat turns.
-- When the user says `continue` or `继续完善`, resume the next real task immediately rather than rephrasing the plan.
+- [ ] 视觉重做（Figma → Tailwind/组件体系）
+
+## Deferred
+
+- [ ] Vercel/Netlify 部署
+- [ ] Sentry 监控
+- [ ] GitHub 发布

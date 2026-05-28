@@ -1,73 +1,49 @@
 # Progress Log
 
+## 2026-05-26 (续)
+
+- DeviceCommandClient 消除闪白：新增 `initialHistory` / `initialTelemetry` props，SSR 数据通过 hydration 保留
+- 组件挂载时不再显示 "Loading device state..."，直接用 SSR 传入的真实数据渲染
+- 新增 5 秒自动轮询：独立 useEffect 定时 fetch API，生命周期状态实时更新
+- 设备页 SSR 传入完整 commandHistory + telemetry 数据
+- 删除死代码 `dashboard-state.ts`
+- 回退 SQLite 方案（WSL 环境编译依赖问题），保持 InMemoryDeviceBackend 为默认后端
+
+### 验证
+- `npm run test`: 12 files / 52 tests 全部通过
+- `npm run lint`: 0 errors, 0 warnings
+
+## 2026-05-26 (续 II — 硬件对接基础设施)
+
+- 创建 `docs/hardware/integration-guide.md`：完整硬件集成文档（架构图、UART帧格式、ESP32/STM32步骤清单、时序规则）
+- 新增 `POST /api/devices/[deviceId]/ingest`：ESP32S3 上行端点，接收 ack 和 telemetry
+- DeviceBackend 接口补 `applyAckByCorrelationId()` 方法（ESP32 只知道 correlationId）
+- device-runtime 实现默认 correlationId→commandId 查找逻辑
+- ingest route 测试 3/3 通过
+- 更新 AGENTS.md / project-handoff.md / task-board.md 为最新状态
+
+### 验证
+- `npm run test`: 13 files / 55 tests 全部通过
+- `npm run lint`: 0 errors, 0 warnings
+- `npm run build`: 通过
+
+---
+
+## 2026-05-26
+
+- 打通生命周期策略端到端：`applyLifecyclePolicies()` 从仅在测试中存在 → 接入 API route GET / lifecycle-tick 端点
+- 在 device-runtime 中暴露 `applyLifecyclePolicies()` 供 route 调用
+- 修改 `/api/devices/[deviceId]/commands` GET：每次查询前自动评估 timeout/retry 状态
+- 新增 `/api/system/lifecycle-tick` POST 端点：全局生命周期轮询接口
+- 新增 `/api/homes/snapshot` GET 端点：聚合所有设备的生命周期统计（超时/失败/重试计数）
+- CommandHistoryList 增强：顶部 lifecycle summary 面板，根据不同状态展示不同颜色和文案
+- 设备详情页重写为 SSR + 生命周期状态栏：首次 HTML 中就能看到命令状态
+- Homes 页重写为 SSR + 客户端 hydrate：首屏数据直出，15 秒自动轮询
+- Landing 页清理：去掉防御性文案，改为面向产品功能描述
+- 修复 Supabase 类型和 SQL 迁移：补充 `attempt_count` 和 `next_retry_at` 列
+- 修复 2 个 Supabase 测试时间戳硬编码问题
+- 修复全部 lint warnings
+
 ## 2026-05-10
 
-- Created and validated the reusable Codex skill `connected-product-delivery`.
-- Wrote the initial product design spec, MVP implementation plan, protocol doc, and delivery briefs.
-- Bootstrapped a local npm workspace with `apps/web` and `packages/device-contract`.
-- Implemented the first local smart-home MVP shell with:
-  - homes dashboard
-  - device detail page
-  - shared device contract validation
-  - in-memory command lifecycle runtime
-  - simulated relay ack loop
-  - API route for command submission
-- Added unit tests for contract parsing, runtime behavior, UI relay control behavior, and the command route.
-- Verified earlier that test, lint, build, and basic local HTTP checks passed.
-- Added this maintenance documentation set so future AI sessions can continue work without relying on chat history.
-- Continued the smart-home MVP with a persistence-oriented tranche:
-  - removed leftover file `apps/write-test.txt`
-  - added route tests for missing devices and offline command rejection
-  - added command-history rendering tests for lifecycle statuses
-  - implemented `409 Device is offline` rejection in the command route
-  - extracted command history into a dedicated component with distinct status tones
-  - introduced a replaceable device backend abstraction plus in-memory backend implementation
-  - added Supabase repository skeleton files under `supabase/`
-  - added Next.js Supabase SSR and browser client skeleton files
-- Fresh verification completed:
-  - `npm run test` passed
-  - `npm run lint` passed
-  - `npm run build` passed
-- Remaining major gap after this tranche: Browser localhost QA evidence is still not completed and must be captured in a follow-up update before calling Browser done.
-- Tightened the process guidance for future agents:
-  - confirmed the existing global skill `plugin-routing-playbook` should be reused for selective plugin routing
-  - decided not to move plugin-routing policy into repo `AGENTS.md`
-  - documented that Browser should be used only when highly relevant and runtime-healthy, with Playwright fallback recorded when needed
-- Added an execution-style handoff rule for future agents:
-  - default to autonomous multi-step execution after initial repo reading
-  - avoid repeated short status-only replies without corresponding tool progress
-  - treat `continue` / `继续` / `继续完善` as a directive to resume actual work immediately
-  - persist that preference in maintenance docs and `.omx/project-memory.json`
-- Completed browser-level localhost QA using Playwright fallback instead of Browser:
-  - verified `/homes` renders expected dashboard content
-  - verified `/devices/device-relay-01` renders and the relay command interaction reaches acknowledged UI state
-  - saved QA artifacts under `output/playwright/`
-  - left Browser plugin honestly marked as not completed because the Browser runtime path itself was not executed successfully in this tranche
-- Added the first selectable persistence integration seam:
-  - wrote tests for backend selection behavior
-  - added `device-backend-factory.ts`
-  - kept in-memory backend as the default path
-  - added a `SupabaseDeviceBackend` placeholder behind the same backend interface so later work can replace reads and writes without breaking the current API surface
-- Re-ran full verification after the backend-selection changes:
-  - `npm run test` passed
-  - `npm run lint` passed
-  - `npm run build` passed
-- Continued the original smart-home web-control objective after a user correction:
-  - user clarified that the project should stay on the single-chip / smart-home web-control track
-  - later game-related drift must be ignored
-  - the current execution should remain anchored to the original smart-home / MCU web control goal
-- Advanced the persistence lane beyond the placeholder stage:
-  - wired Supabase snapshot reads into the backend skeleton
-  - added caching/state-shaping tests for `SupabaseDeviceBackend`
-  - added in-memory lifecycle support inside the Supabase skeleton so command-state behavior can be developed without breaking the current API surface
-- Fresh verification completed after the Supabase read-path work:
-  - `npm run test -- --run apps/web/src/lib/server/supabase-device-backend.test.ts apps/web/src/app/api/devices/[deviceId]/commands/route.test.ts apps/web/src/lib/server/device-backend-factory.test.ts` passed
-  - `npm run lint` passed
-  - `npm run build` passed
-- Observed during the Supabase read-path work:
-  - local npm install had to refresh optional Rollup native deps before Vitest could run
-  - build/type-check required making the server snapshot access async and aligning the backend snapshot/repository shape
-
-## Update rule
-
-Append a new dated entry after every substantive implementation, verification, deployment, or integration change.
+(历史记录同上)

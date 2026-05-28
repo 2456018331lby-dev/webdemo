@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseCommandRequest } from "@smart-home/device-contract";
 import {
+  applyLifecyclePolicies,
   getCommandHistory,
   getDeviceState,
   queueDeviceCommand,
@@ -47,8 +48,11 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Device not found" }, { status: 404 });
   }
 
+  // Apply lifecycle policies so timeout / retry states are evaluated on every read
+  applyLifecyclePolicies({ now: new Date().toISOString() });
+
   return NextResponse.json({
-    state,
+    state: await getDeviceState(deviceId),
     commandHistory: await getCommandHistory(deviceId)
   });
 }

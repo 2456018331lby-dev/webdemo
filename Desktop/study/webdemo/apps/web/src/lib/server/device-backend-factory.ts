@@ -8,9 +8,7 @@ function getRequestedBackend() {
 }
 
 export function createDeviceBackend(): DeviceBackend {
-  const requestedBackend = getRequestedBackend();
-
-  if (requestedBackend === "supabase" && isSupabaseConfigured()) {
+  if (getRequestedBackend() === "supabase" && isSupabaseConfigured()) {
     return new SupabaseDeviceBackend();
   }
 

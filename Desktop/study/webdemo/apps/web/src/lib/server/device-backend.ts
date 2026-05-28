@@ -10,6 +10,8 @@ export type DeviceCommandRecord = {
   payload: CommandRequest["payload"];
   requestedAt: string;
   status: DeviceCommandStatus;
+  attemptCount?: number;
+  nextRetryAt?: string | null;
 };
 
 export type DeviceStateRecord = {
@@ -28,5 +30,13 @@ export interface DeviceBackend {
   queueCommand(input: CommandRequest): DeviceCommandRecord;
   markCommandDelivered(deviceId: string, commandId: string): void;
   applyAckPayload(deviceId: string, commandId: string, ack: AckPayload): void;
+
+  /**
+   * ESP32S3 上报 ack 时只有 correlationId，此方法负责查找 commandId 后调用 applyAckPayload。
+   * 默认实现在 device-runtime 层，子类可覆盖。
+   */
+  applyAckByCorrelationId?(deviceId: string, correlationId: string, ack: AckPayload): void;
+
+  applyLifecyclePolicies?(input: { now: string }): void;
   simulateCommandDelivery(deviceId: string, commandId: string): Promise<AckPayload>;
 }

@@ -1,14 +1,12 @@
+import { NextResponse } from "next/server";
 import { applyLifecyclePolicies, getDeviceState, getCommandHistory } from "@/lib/server/device-runtime";
-import { HomesClient } from "./homes-client";
 import { homes } from "@/lib/mock-data";
 
-export const dynamic = "force-dynamic";
-
-export default async function HomesPage() {
+export async function GET() {
   const now = new Date().toISOString();
   applyLifecyclePolicies({ now });
 
-  const homeSnapshots = await Promise.all(
+  const result = await Promise.all(
     homes.map(async (home) => {
       let deviceCount = 0;
       let offlineCount = 0;
@@ -17,18 +15,18 @@ export default async function HomesPage() {
       let retryingCount = 0;
 
       const rooms = await Promise.all(
-        home.rooms.map(async (room) => ({
-          id: room.id,
-          name: room.name,
-          devices: await Promise.all(
+        home.rooms.map(async (room) => {
+          const devices = await Promise.all(
             room.devices.map(async (d) => {
               deviceCount++;
+
               const state = await getDeviceState(d.id);
               const online = state?.online ?? d.online;
               if (!online) offlineCount++;
 
               const history = await getCommandHistory(d.id);
               const latest = history[0];
+
               if (latest) {
                 if (latest.status === "timed_out") timedOutCount++;
                 if (latest.status === "failed") failedCount++;
@@ -47,8 +45,14 @@ export default async function HomesPage() {
                 nextRetryAt: latest?.nextRetryAt ?? null
               };
             })
-          )
-        }))
+          );
+
+          return {
+            id: room.id,
+            name: room.name,
+            devices
+          };
+        })
       );
 
       return {
@@ -66,5 +70,5 @@ export default async function HomesPage() {
     })
   );
 
-  return <HomesClient initialHomes={homeSnapshots} />;
+  return NextResponse.json({ homes: result });
 }

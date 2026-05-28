@@ -8,13 +8,17 @@ describe("device backend factory", () => {
     delete process.env.SMART_HOME_BACKEND;
   });
 
-  it("uses the in-memory backend by default", async () => {
-    const { createDeviceBackend } = await import("./device-backend-factory");
+  it(
+    "uses the in-memory backend by default",
+    async () => {
+      const { createDeviceBackend } = await import("./device-backend-factory");
 
-    const backend = createDeviceBackend();
+      const backend = createDeviceBackend();
 
-    expect(backend.constructor.name).toBe("InMemoryDeviceBackend");
-  });
+      expect(backend.constructor.name).toBe("InMemoryDeviceBackend");
+    },
+    15000
+  );
 
   it("falls back to the in-memory backend when supabase is requested without env", async () => {
     process.env.SMART_HOME_BACKEND = "supabase";

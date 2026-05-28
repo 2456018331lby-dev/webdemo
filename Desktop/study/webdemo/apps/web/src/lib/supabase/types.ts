@@ -61,6 +61,8 @@ export type Database = {
           delivered_at: string | null;
           acknowledged_at: string | null;
           failure_reason: string | null;
+          attempt_count: number;
+          next_retry_at: string | null;
         };
       };
     };

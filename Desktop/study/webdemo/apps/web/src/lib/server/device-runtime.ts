@@ -46,6 +46,29 @@ export function applyAckPayload(deviceId: string, commandId: string, ack: AckPay
   deviceBackend.applyAckPayload(deviceId, commandId, ack);
 }
 
+/**
+ * ESP32S3 只知道 correlationId，不知道 commandId。
+ * 此方法从命令历史中匹配 correlationId → commandId，再调用 applyAckPayload。
+ */
+export async function applyAckByCorrelationId(deviceId: string, correlationId: string, ack: AckPayload) {
+  // 尝试后端自定义实现
+  if (deviceBackend.applyAckByCorrelationId) {
+    return deviceBackend.applyAckByCorrelationId(deviceId, correlationId, ack);
+  }
+
+  // 默认实现：从历史中查找 commandId
+  const history = await getCommandHistory(deviceId);
+  const match = history.find((cmd) => cmd.correlationId === correlationId);
+  if (!match) {
+    throw new Error(`No command found for correlationId: ${correlationId}`);
+  }
+  deviceBackend.applyAckPayload(deviceId, match.commandId, ack);
+}
+
+export function applyLifecyclePolicies(input: { now: string }) {
+  return deviceBackend.applyLifecyclePolicies?.(input);
+}
+
 export async function simulateCommandDelivery(deviceId: string, commandId: string) {
   return deviceBackend.simulateCommandDelivery(deviceId, commandId);
 }

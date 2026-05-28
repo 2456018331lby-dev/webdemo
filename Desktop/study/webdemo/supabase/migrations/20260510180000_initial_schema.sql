@@ -72,7 +72,9 @@ create table if not exists public.device_commands (
   requested_at timestamptz not null default timezone('utc', now()),
   delivered_at timestamptz,
   acknowledged_at timestamptz,
-  failure_reason text
+  failure_reason text,
+  attempt_count integer not null default 1,
+  next_retry_at timestamptz
 );
 
 create table if not exists public.telemetry_events (

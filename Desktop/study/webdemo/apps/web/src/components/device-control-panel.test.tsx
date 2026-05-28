@@ -23,10 +23,10 @@ describe("DeviceControlPanel", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Turn relay on" }));
+    fireEvent.click(screen.getByRole("button", { name: "开启" }));
 
     expect(onSendRelayCommand).toHaveBeenCalledWith(true);
-    expect(screen.getByText("Pending hardware acknowledgement")).toBeInTheDocument();
+    expect(screen.getByText("发送中")).toBeInTheDocument();
     await act(async () => {
       resolveCommand?.();
     });
@@ -42,13 +42,13 @@ describe("DeviceControlPanel", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Turn relay on" }));
+    fireEvent.click(screen.getByRole("button", { name: "开启" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Hardware acknowledged the new relay state")).toBeInTheDocument();
+      expect(screen.getByText("已确认")).toBeInTheDocument();
     });
 
-    expect(screen.getByRole("button", { name: "Turn relay off" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "关闭" })).toBeInTheDocument();
   });
 
   it("disables relay control when the device is offline", () => {
@@ -61,9 +61,8 @@ describe("DeviceControlPanel", () => {
       />
     );
 
-    const button = screen.getByRole("button", { name: "Turn relay off" });
+    const button = screen.getByRole("button", { name: "关闭" });
 
     expect(button).toBeDisabled();
-    expect(screen.getByText("Device is offline")).toBeInTheDocument();
   });
 });

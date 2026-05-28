@@ -13,7 +13,9 @@ describe("CommandHistoryList", () => {
             commandId: "cmd-queued",
             commandType: "relay.set",
             status: "queued",
-            requestedAt: "2026-05-10T09:00:00Z"
+            requestedAt: "2026-05-10T09:00:00Z",
+            attemptCount: 2,
+            nextRetryAt: "2026-05-10T09:00:05Z"
           },
           {
             commandId: "cmd-delivered",
@@ -49,5 +51,26 @@ describe("CommandHistoryList", () => {
     expect(screen.getByText("acknowledged")).toHaveAttribute("data-status-tone", "success");
     expect(screen.getByText("failed")).toHaveAttribute("data-status-tone", "danger");
     expect(screen.getByText("timed out")).toHaveAttribute("data-status-tone", "warning");
+    expect(screen.getByText(/Attempt 2/)).toBeInTheDocument();
+    expect(screen.getByText(/Retry after/)).toBeInTheDocument();
+  });
+
+  it("shows retry metadata only for commands that actually need it", () => {
+    render(
+      <CommandHistoryList
+        telemetryNote="Temperature 24.6 C, RSSI -61 dBm"
+        history={[
+          {
+            commandId: "cmd-normal",
+            commandType: "relay.set",
+            status: "acknowledged",
+            requestedAt: "2026-05-10T09:00:04Z"
+          }
+        ]}
+      />
+    );
+
+    expect(screen.queryByText(/Attempt/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Retry after/)).not.toBeInTheDocument();
   });
 });

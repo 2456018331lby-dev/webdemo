@@ -1,157 +1,81 @@
 "use client";
 
-import React from "react";
-import { useState, useTransition } from "react";
+import React, { useState } from "react";
 
-type DeviceControlPanelProps = {
+type Props = {
   deviceName: string;
   initialRelayOn: boolean;
   isOffline: boolean;
   onSendRelayCommand: (nextValue: boolean) => Promise<void>;
 };
 
-type CommandStatus = "idle" | "pending" | "acknowledged" | "failed";
-
-export function DeviceControlPanel({
-  deviceName,
-  initialRelayOn,
-  isOffline,
-  onSendRelayCommand
-}: DeviceControlPanelProps) {
+export function DeviceControlPanel({ deviceName, initialRelayOn, isOffline, onSendRelayCommand }: Props) {
   const [relayOn, setRelayOn] = useState(initialRelayOn);
-  const [status, setStatus] = useState<CommandStatus>("idle");
-  const [isTransitionPending, startTransition] = useTransition();
+  const [status, setStatus] = useState<"idle" | "sending" | "ok" | "fail">("idle");
+  const [errMsg, setErrMsg] = useState("");
 
-  async function handleToggle() {
-    if (isOffline) {
-      return;
-    }
-
-    const nextRelayValue = !relayOn;
-
-    setStatus("pending");
-
+  async function toggle() {
+    if (isOffline || status === "sending") return;
+    const next = !relayOn;
+    setStatus("sending");
+    setErrMsg("");
     try {
-      await onSendRelayCommand(nextRelayValue);
-
-      startTransition(() => {
-        setRelayOn(nextRelayValue);
-        setStatus("acknowledged");
-      });
-    } catch {
-      setStatus("failed");
+      await onSendRelayCommand(next);
+      setRelayOn(next);
+      setStatus("ok");
+    } catch (e) {
+      setStatus("fail");
+      setErrMsg(e instanceof Error ? e.message : "命令失败");
     }
   }
 
-  const buttonLabel = relayOn ? "Turn relay off" : "Turn relay on";
-
   return (
-    <section
-      style={{
-        borderRadius: "24px",
-        padding: "24px",
-        background: "rgba(255,255,255,0.9)",
-        border: "1px solid rgba(21, 48, 65, 0.08)",
-        boxShadow: "0 14px 38px rgba(21, 48, 65, 0.10)"
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "20px", alignItems: "start" }}>
+    <section className="surface-panel" style={{ background: "var(--bg-panel)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
         <div>
-          <p style={{ margin: 0, fontSize: "12px", letterSpacing: "0.12em", textTransform: "uppercase", color: "#61839a" }}>
-            Device Control
-          </p>
-          <h2 style={{ margin: "8px 0 4px", fontSize: "28px", lineHeight: 1.1 }}>{deviceName}</h2>
-          <p style={{ margin: 0, color: "#4b6678", lineHeight: 1.5 }}>
-            Relay state is tracked separately from the command lifecycle so the UI can show pending and acknowledged states clearly.
-          </p>
+          <p className="info-label">设备控制</p>
+          <h2 className="page-section-title" style={{ marginTop: "6px", fontSize: "26px" }}>{deviceName}</h2>
         </div>
-        <span
-          style={{
-            alignSelf: "center",
-            padding: "8px 12px",
-            borderRadius: "999px",
-            background: isOffline ? "rgba(180, 52, 52, 0.12)" : "rgba(25, 141, 85, 0.12)",
-            color: isOffline ? "#9f2525" : "#16653f",
-            fontWeight: 600,
-            fontSize: "13px"
-          }}
-        >
-          {isOffline ? "Offline" : "Online"}
-        </span>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <span style={{ fontSize: "14px", color: "var(--text-body)" }}>
+            当前: <strong style={{ color: "var(--text-strong)" }}>{relayOn ? "开" : "关"}</strong>
+          </span>
+          <button
+            onClick={toggle}
+            disabled={isOffline || status === "sending"}
+            className={isOffline ? "secondary-cta" : "primary-cta"}
+            style={{
+              border: 0, cursor: isOffline || status === "sending" ? "not-allowed" : "pointer",
+              opacity: isOffline ? 0.6 : status === "sending" ? 0.7 : 1,
+              fontSize: "16px", padding: "14px 22px"
+            }}
+          >
+            {status === "sending" ? "发送中..." : relayOn ? "关闭" : "开启"}
+          </button>
+        </div>
       </div>
 
-      <div
-        style={{
-          marginTop: "24px",
-          display: "grid",
-          gap: "18px",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))"
-        }}
-      >
-        <article
-          style={{
-            borderRadius: "18px",
-            padding: "18px",
-            background: "#f2f7fa",
-            border: "1px solid rgba(21, 48, 65, 0.06)"
-          }}
-        >
-          <p style={{ margin: 0, fontSize: "12px", color: "#5f7f92", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            Reported relay state
-          </p>
-          <p style={{ margin: "10px 0 0", fontSize: "32px", fontWeight: 700 }}>
-            {relayOn ? "On" : "Off"}
-          </p>
+      <div className="metric-grid" style={{ marginTop: "20px" }}>
+        <article className="soft-card">
+          <div className="info-label">继电器状态</div>
+          <strong className="info-value" style={{ fontSize: "28px" }}>{relayOn ? "开" : "关"}</strong>
         </article>
-
-        <article
-          style={{
-            borderRadius: "18px",
-            padding: "18px",
-            background: "#f2f7fa",
-            border: "1px solid rgba(21, 48, 65, 0.06)"
-          }}
-        >
-          <p style={{ margin: 0, fontSize: "12px", color: "#5f7f92", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            Command status
-          </p>
-          <p style={{ margin: "10px 0 0", fontSize: "20px", fontWeight: 700 }}>
-            {status === "idle" && "Ready"}
-            {status === "pending" && "Pending"}
-            {status === "acknowledged" && "Acknowledged"}
-            {status === "failed" && "Failed"}
-          </p>
+        <article className="soft-card">
+          <div className="info-label">命令状态</div>
+          <strong className="info-value" style={{ fontSize: "20px" }}>
+            {status === "idle" && "就绪"}
+            {status === "sending" && "发送中"}
+            {status === "ok" && "已确认"}
+            {status === "fail" && "失败"}
+          </strong>
         </article>
       </div>
 
-      <div style={{ marginTop: "24px", display: "flex", flexWrap: "wrap", gap: "14px", alignItems: "center" }}>
-        <button
-          type="button"
-          onClick={handleToggle}
-          disabled={isOffline || status === "pending" || isTransitionPending}
-          aria-label={buttonLabel}
-          style={{
-            border: 0,
-            borderRadius: "16px",
-            padding: "14px 20px",
-            fontSize: "15px",
-            fontWeight: 700,
-            cursor: isOffline ? "not-allowed" : "pointer",
-            background: isOffline ? "#d7dde1" : "#153041",
-            color: isOffline ? "#6b7a84" : "#ffffff"
-          }}
-        >
-          {buttonLabel}
-        </button>
-
-        <p style={{ margin: 0, fontSize: "14px", color: "#456072" }}>
-          {isOffline && "Device is offline"}
-          {!isOffline && status === "pending" && "Pending hardware acknowledgement"}
-          {!isOffline && status === "acknowledged" && "Hardware acknowledged the new relay state"}
-          {!isOffline && status === "failed" && "Command failed before the hardware acknowledged it"}
-          {!isOffline && status === "idle" && "Ready to send a relay command"}
-        </p>
-      </div>
+      {errMsg && (
+        <div style={{ marginTop: "14px", padding: "10px 14px", borderRadius: "12px", background: "rgba(180,52,52,0.08)", color: "#9f2525", fontSize: "14px" }}>
+          错误: {errMsg}
+        </div>
+      )}
     </section>
   );
 }
