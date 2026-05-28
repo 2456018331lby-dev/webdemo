@@ -42,7 +42,8 @@ export default function HomePage() {
 
             <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
               <Link href="/homes" className="primary-cta">全局健康度</Link>
-              <Link href="/devices/device-relay-01" className="secondary-cta">直接控制 Main Light Relay</Link>
+              <Link href="/devices/device-relay-01" className="secondary-cta">客厅主灯继电器</Link>
+              <Link href="/devices/device-relay-03" className="secondary-cta">卧室床头灯</Link>
             </div>
           </div>
         </header>
@@ -64,6 +65,42 @@ export default function HomePage() {
               <strong className="info-value" style={{ fontSize: "22px", lineHeight: 1.4 }}>Supabase 持久化 · 真实硬件对接</strong>
               <p className="info-copy">当前 in-memory demo 已打通控制链路，下步接入 Supabase 数据库和真实 MCU 硬件。</p>
             </article>
+          </div>
+        </section>
+
+        <section className="surface-panel">
+          <div style={{ display: "grid", gap: "16px" }}>
+            <h2 style={{ margin: 0, fontSize: "24px", color: "var(--text-strong)" }}>快速导航</h2>
+            <div style={{ display: "grid", gap: "12px", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+              <Link href="/homes" style={{
+                padding: "16px", borderRadius: "var(--radius-card)", background: "var(--bg-soft)",
+                border: "1px solid var(--border-soft)", display: "block"
+              }}>
+                <div style={{ fontWeight: 800, marginBottom: "4px" }}>🏠 全局健康度</div>
+                <div style={{ fontSize: "14px", color: "var(--text-body)" }}>查看所有家庭和设备状态</div>
+              </Link>
+              <Link href="/devices/device-relay-01" style={{
+                padding: "16px", borderRadius: "var(--radius-card)", background: "var(--bg-soft)",
+                border: "1px solid var(--border-soft)", display: "block"
+              }}>
+                <div style={{ fontWeight: 800, marginBottom: "4px" }}>💡 客厅主灯</div>
+                <div style={{ fontSize: "14px", color: "var(--text-body)" }}>控制继电器开关</div>
+              </Link>
+              <Link href="/devices/device-sensor-01" style={{
+                padding: "16px", borderRadius: "var(--radius-card)", background: "var(--bg-soft)",
+                border: "1px solid var(--border-soft)", display: "block"
+              }}>
+                <div style={{ fontWeight: 800, marginBottom: "4px" }}>🌡️ 温湿度传感器</div>
+                <div style={{ fontSize: "14px", color: "var(--text-body)" }}>查看环境数据</div>
+              </Link>
+              <Link href="/devices/device-relay-03" style={{
+                padding: "16px", borderRadius: "var(--radius-card)", background: "var(--bg-soft)",
+                border: "1px solid var(--border-soft)", display: "block"
+              }}>
+                <div style={{ fontWeight: 800, marginBottom: "4px" }}>🛏️ 卧室床头灯</div>
+                <div style={{ fontSize: "14px", color: "var(--text-body)" }}>控制卧室照明</div>
+              </Link>
+            </div>
           </div>
         </section>
       </section>
