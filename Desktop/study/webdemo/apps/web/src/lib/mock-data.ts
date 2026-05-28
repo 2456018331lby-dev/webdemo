@@ -19,42 +19,85 @@ export type HomeSummary = {
 export const homes: HomeSummary[] = [
   {
     id: "home-01",
-    name: "Harbor Apartment",
+    name: "温馨公寓",
     memberRole: "owner",
     rooms: [
       {
         id: "room-living",
-        name: "Living Room",
+        name: "客厅",
         devices: [
           {
             id: "device-relay-01",
-            name: "Main Light Relay",
+            name: "主灯继电器",
             type: "relay-controller",
             online: true,
             relayOn: true,
-            lastTelemetry: "Temperature 24.6 C, RSSI -61 dBm"
+            lastTelemetry: "温度 24.6°C, 信号强度 -61 dBm"
           },
           {
             id: "device-sensor-01",
-            name: "Climate Sensor",
+            name: "温湿度传感器",
             type: "environment-sensor",
             online: true,
             relayOn: false,
-            lastTelemetry: "Humidity 48.1%, Voltage 3.28 V"
+            lastTelemetry: "湿度 48.1%, 电压 3.28 V"
           }
         ]
       },
       {
         id: "room-kitchen",
-        name: "Kitchen",
+        name: "厨房",
         devices: [
           {
             id: "device-relay-02",
-            name: "Exhaust Relay",
+            name: "排风扇继电器",
             type: "relay-controller",
             online: false,
             relayOn: false,
-            lastTelemetry: "Last heartbeat 2 minutes ago"
+            lastTelemetry: "最后心跳 2 分钟前"
+          }
+        ]
+      },
+      {
+        id: "room-bedroom",
+        name: "卧室",
+        devices: [
+          {
+            id: "device-relay-03",
+            name: "床头灯继电器",
+            type: "relay-controller",
+            online: true,
+            relayOn: false,
+            lastTelemetry: "温度 22.3°C, 信号强度 -55 dBm"
+          },
+          {
+            id: "device-sensor-02",
+            name: "空气质量传感器",
+            type: "environment-sensor",
+            online: true,
+            relayOn: false,
+            lastTelemetry: "CO2 450ppm, PM2.5 15μg/m³"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: "home-02",
+    name: "办公室",
+    memberRole: "member",
+    rooms: [
+      {
+        id: "room-office",
+        name: "办公区",
+        devices: [
+          {
+            id: "device-relay-04",
+            name: "照明继电器",
+            type: "relay-controller",
+            online: true,
+            relayOn: true,
+            lastTelemetry: "温度 25.1°C, 信号强度 -58 dBm"
           }
         ]
       }
