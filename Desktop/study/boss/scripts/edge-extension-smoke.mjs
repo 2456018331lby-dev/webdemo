@@ -79,6 +79,7 @@ try {
 
     const autoResearch = await verifyAutoResearchCapture(client, port, resume, nowIso);
     const queueAutoApply = await verifyQueueAutoApply(client, port, resume, nowIso);
+    const requiredFieldPause = await verifyQueueRequiredFieldPause(client, port, resume, nowIso);
 
     await clearExtensionStorage(client);
     await sendRuntimeMessage(client, { type: 'SAVE_RESUME', resume });
@@ -113,6 +114,7 @@ try {
       autoApplyClicked: true,
       autoResearchCaptured: autoResearch.recordCount,
       queueAutoApplyCompleted: queueAutoApply.completedJobId,
+      requiredFieldPauseReason: requiredFieldPause.pauseReason,
       rankedJobIds: queuedIds,
       rescannedTopJobId: rescannedItems[0]?.job?.id,
       highSalaryScore: queuedItems[0].score.score,
@@ -160,6 +162,17 @@ async function openFakeBossQueueApplyPage(port) {
     makeFakeBossQueueApplyHtml(),
     '投递简历',
     'Fake BOSS queue apply page did not render expected apply target.',
+    { urlPattern: 'https://www.zhipin.com/*', requestUrlIncludes: 'zhipin.com' }
+  );
+}
+
+async function openFakeBossRequiredFieldPage(port) {
+  return openInterceptedPage(
+    port,
+    'https://www.zhipin.com/job_detail/edge-required-field.html',
+    makeFakeBossRequiredFieldHtml(),
+    '请选择简历',
+    'Fake BOSS required-field page did not render expected safety blocker.',
     { urlPattern: 'https://www.zhipin.com/*', requestUrlIncludes: 'zhipin.com' }
   );
 }
@@ -287,6 +300,27 @@ function makeFakeBossQueueApplyHtml() {
 </html>`;
 }
 
+function makeFakeBossRequiredFieldHtml() {
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <title>BOSS required field apply</title>
+  </head>
+  <body>
+    <article class="job-detail">
+      <h1>需要选择简历的前端工程师</h1>
+      <section class="job-detail-op">
+        <label>请选择简历 <input id="resume" required value=""></label>
+        <button id="apply" type="button" onclick="document.getElementById('result').textContent = '不应点击';">投递简历</button>
+      </section>
+      <p>React TypeScript SaaS 平台研发，五险一金，年终奖，周末双休，带薪年假。</p>
+      <p id="result" aria-live="polite"></p>
+    </article>
+  </body>
+</html>`;
+}
+
 function makeFakeBingSearchHtml() {
   return `<!doctype html>
 <html lang="zh-CN">
@@ -388,6 +422,43 @@ async function verifyQueueAutoApply(client, port, resume, nowIso) {
   } finally {
     fakeApplyPage.client.close();
     await closeTarget(port, fakeApplyPage.target.id);
+  }
+}
+
+async function verifyQueueRequiredFieldPause(client, port, resume, nowIso) {
+  await clearExtensionStorage(client);
+  await sendRuntimeMessage(client, { type: 'SAVE_RESUME', resume });
+  await sendRuntimeMessage(client, {
+    type: 'SET_POLICY',
+    policy: {
+      dailyLimit: 20,
+      minMinutesBetweenActions: 3,
+      maxQueueSize: 100,
+      mode: 'auto',
+      requireResearchBeforeAuto: false
+    }
+  });
+
+  const job = makeRequiredFieldJob(nowIso);
+  const queued = await sendRuntimeMessage(client, { type: 'QUEUE_JOBS', jobs: [job] });
+  assert(queued.state?.queue?.items?.[0]?.job?.id === job.id, `Expected required-field job to be first, got ${queued.state?.queue?.items?.[0]?.job?.id}`);
+
+  const fakePage = await openFakeBossRequiredFieldPage(port);
+  try {
+    await activateTarget(port, fakePage.target.id);
+    const response = await sendRuntimeMessage(client, { type: 'RUN_NEXT_APPLICATION' });
+    const item = response.state?.queue?.items?.find((queueItem) => queueItem.job.id === job.id);
+    assert(item?.status === 'paused', `Expected required-field queue item to pause, got ${item?.status}`);
+    assert(item?.pauseReason === 'missing-required-field', `Expected missing-required-field pause, got ${item?.pauseReason}`);
+    assert(response.state?.auditLog?.[0]?.action === 'apply.paused', `Expected apply.paused audit log, got ${response.state?.auditLog?.[0]?.action}`);
+    assert(response.state?.auditLog?.[0]?.message?.includes('选择简历') || response.state?.auditLog?.[0]?.message?.includes('必填'), `Expected safety pause message, got ${response.state?.auditLog?.[0]?.message}`);
+
+    const resultText = await evaluate(fakePage.client, 'document.getElementById("result")?.textContent ?? ""');
+    assert(resultText === '', `Expected required-field page not to click apply, got ${resultText}`);
+    return { pauseReason: item.pauseReason };
+  } finally {
+    fakePage.client.close();
+    await closeTarget(port, fakePage.target.id);
   }
 }
 
@@ -726,6 +797,22 @@ function makeQueueAutoApplyJob(nowIso) {
     requirements: ['React', 'TypeScript'],
     tags: ['React', 'TypeScript', '五险一金', '年终奖', '双休', '带薪年假'],
     url: 'https://www.zhipin.com/job_detail/edge-queue-auto-apply.html',
+    scrapedAt: nowIso
+  };
+}
+
+function makeRequiredFieldJob(nowIso) {
+  return {
+    id: 'edge-required-field',
+    platform: 'boss',
+    title: '需要选择简历的前端工程师',
+    company: { name: '必填安全科技', industry: 'SaaS', location: '上海', tags: ['五险一金', '双休'] },
+    location: '上海',
+    salary: { min: 36_000, max: 46_000, currency: 'CNY', period: 'month', raw: '36-46K' },
+    description: 'React TypeScript SaaS 平台研发，五险一金，年终奖，周末双休，带薪年假。',
+    requirements: ['React', 'TypeScript'],
+    tags: ['React', 'TypeScript', '五险一金', '年终奖', '双休', '带薪年假'],
+    url: 'https://www.zhipin.com/job_detail/edge-required-field.html',
     scrapedAt: nowIso
   };
 }
