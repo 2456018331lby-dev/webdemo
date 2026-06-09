@@ -11,7 +11,7 @@ import {
 } from '@job-assistant/shared';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { ExtensionState } from '../storage/state';
+import type { ExtensionState, PendingResearchTarget } from '../storage/state';
 import { sendRuntimeMessage } from './runtime';
 import './styles.css';
 
@@ -131,9 +131,25 @@ function SidePanelApp() {
       type: 'OPEN_RESEARCH_SEARCHES',
       companyName: item.job.company.name,
       jobTitle: item.job.title,
-      criteria: selectedCriteria
+      criteria: selectedCriteria,
+      jobId: item.job.id,
+      platform: item.job.platform
     });
-    if (!response.ok) setError(response.error);
+    if (response.ok) setState(response.state);
+    else setError(response.error);
+  }
+
+  async function openResearchSearchesForTarget(target: PendingResearchTarget) {
+    const response = await sendRuntimeMessage({
+      type: 'OPEN_RESEARCH_SEARCHES',
+      companyName: target.companyName,
+      jobTitle: target.jobTitle,
+      criteria: target.missingKeys.length > 0 ? target.missingKeys : undefined,
+      jobId: target.jobId,
+      platform: target.platform
+    });
+    if (response.ok) setState(response.state);
+    else setError(response.error);
   }
 
   async function captureActiveResearch() {
@@ -141,6 +157,20 @@ function SidePanelApp() {
     const response = await sendRuntimeMessage({ type: 'CAPTURE_ACTIVE_RESEARCH', companyName: researchCompany, jobTitle: researchJobTitle });
     if (response.ok) setState(response.state);
     else setError(response.error);
+  }
+
+  async function capturePendingResearch(target: PendingResearchTarget) {
+    fillResearchTarget(target);
+    const response = await sendRuntimeMessage({ type: 'CAPTURE_ACTIVE_RESEARCH', companyName: target.companyName, jobTitle: target.jobTitle });
+    if (response.ok) setState(response.state);
+    else setError(response.error);
+  }
+
+  function fillResearchTarget(target: PendingResearchTarget) {
+    setResearchCompany(target.companyName);
+    setResearchJobTitle(target.jobTitle ?? '');
+    setResearchUrl('');
+    setResearchTitle('');
   }
 
   function prepareResearchForItem(item: QueueItem) {
@@ -248,6 +278,21 @@ function SidePanelApp() {
         </div>
         <button className="secondary" disabled={!researchCompany.trim()} onClick={captureActiveResearch}>捕获当前页资料</button>
         <p className="muted">已保存资料：{state?.research.length ?? 0} 条。保存后会重新计算公司分和岗位排序。</p>
+        {(state?.pendingResearchTargets.length ?? 0) > 0 && (
+          <div className="list">
+            {(state?.pendingResearchTargets ?? []).slice(0, 5).map((target) => (
+              <article className="research-item" key={target.id}>
+                <strong>{target.companyName}{target.jobTitle ? ` · ${target.jobTitle}` : ''}</strong>
+                <p className="muted">待补：{target.missingLabels.join('、') || '全网资料'} · {target.source === 'auto-queue' ? '自动队列触发' : '手动搜索触发'}</p>
+                <div className="row">
+                  <button className="secondary" onClick={() => fillResearchTarget(target)}>带入表单</button>
+                  <button className="secondary" onClick={() => openResearchSearchesForTarget(target)}>继续搜索</button>
+                  <button className="secondary" onClick={() => capturePendingResearch(target)}>捕获当前页</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
         <div className="list">
           {(state?.research ?? []).slice(0, 5).map((record) => (
             <article className="research-item" key={record.id}>

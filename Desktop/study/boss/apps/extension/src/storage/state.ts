@@ -3,8 +3,10 @@ import type {
   BlacklistRule,
   CompanyResearchRecord,
   JobPosting,
+  PlatformId,
   QueuePolicy,
   QueueState,
+  ResearchCriterionKey,
   ResumeProfile
 } from '@job-assistant/shared';
 import { defaultQueuePolicy } from '@job-assistant/shared';
@@ -18,6 +20,7 @@ export interface ExtensionState {
   blacklist: BlacklistRule[];
   auditLog: AuditLogEntry[];
   runner: AutomationRunnerState;
+  pendingResearchTargets: PendingResearchTarget[];
 }
 
 export interface AutomationRunnerState {
@@ -26,6 +29,20 @@ export interface AutomationRunnerState {
   stoppedAt?: string;
   lastTickAt?: string;
   message?: string;
+}
+
+export interface PendingResearchTarget {
+  id: string;
+  companyName: string;
+  jobTitle?: string;
+  jobId?: string;
+  platform?: PlatformId;
+  missingKeys: ResearchCriterionKey[];
+  missingLabels: string[];
+  queries: string[];
+  source: 'auto-queue' | 'manual-search';
+  createdAt: string;
+  updatedAt: string;
 }
 
 const STORAGE_KEY = 'jobAssistantState';
@@ -46,7 +63,8 @@ export function createInitialState(nowIso = new Date().toISOString()): Extension
       { id: 'kw-training', kind: 'keyword', value: '培训', reason: '默认跳过培训类岗位', enabled: true }
     ],
     auditLog: [],
-    runner: { enabled: false }
+    runner: { enabled: false },
+    pendingResearchTargets: []
   };
 }
 
@@ -78,6 +96,7 @@ function normalizeState(state: Partial<ExtensionState>): ExtensionState {
     policy: { ...initial.policy, ...state.policy },
     blacklist: state.blacklist ?? initial.blacklist,
     auditLog: state.auditLog ?? initial.auditLog,
+    pendingResearchTargets: state.pendingResearchTargets ?? initial.pendingResearchTargets,
     runner: {
       enabled: state.runner?.enabled ?? false,
       startedAt: state.runner?.startedAt,

@@ -18,7 +18,7 @@ import {
 } from '@job-assistant/shared';
 import type { ApplicationMode, ApplyAttemptResult, BlacklistRule, CompanyResearchRecord, JobPosting, QueuePolicy, QueueState, ResearchQuery, ResumeProfile } from '@job-assistant/shared';
 import type { RuntimeMessage, RuntimeResponse } from '../types/messages';
-import { loadState, updateState, type ExtensionState } from '../storage/state';
+import { loadState, updateState, type ExtensionState, type PendingResearchTarget } from '../storage/state';
 
 const QUEUE_AUTOMATION_ALARM = 'job-assistant.queue-automation';
 const MIN_AUTOMATION_INTERVAL_MINUTES = 3;
@@ -136,9 +136,27 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
     }
 
     case 'OPEN_RESEARCH_SEARCHES': {
+      const nowIso = new Date().toISOString();
       const queries = buildResearchQueries(message.companyName, message.jobTitle, message.criteria);
       await openResearchQueryTabs(queries);
-      return { ok: true, message: `已打开 ${queries.length} 个资料搜索。` };
+      const state = await updateState((current) => ({
+        ...current,
+        pendingResearchTargets: upsertPendingResearchTarget(
+          current.pendingResearchTargets,
+          createPendingResearchTarget({
+            companyName: message.companyName,
+            jobTitle: message.jobTitle,
+            jobId: message.jobId,
+            platform: message.platform,
+            missingKeys: queries.map((query) => query.key),
+            missingLabels: queries.map((query) => query.label),
+            queries,
+            source: 'manual-search',
+            nowIso
+          })
+        )
+      }));
+      return { ok: true, state, message: `已打开 ${queries.length} 个资料搜索。` };
     }
 
     case 'CAPTURE_ACTIVE_RESEARCH': {
@@ -280,6 +298,20 @@ async function runNextApplicationAction(nowIso: string, source: 'manual' | 'auto
         ...current,
         queue: markQueueItemAttempted(queue, runnable.id, nowIso, current.policy, false, attempt.pauseReason),
         runner: source === 'automation' ? { ...current.runner, lastTickAt: nowIso } : current.runner,
+        pendingResearchTargets: upsertPendingResearchTarget(
+          current.pendingResearchTargets,
+          createPendingResearchTarget({
+            companyName: runnable.job.company.name,
+            jobTitle: runnable.job.title,
+            jobId: runnable.job.id,
+            platform: runnable.job.platform,
+            missingKeys: coverage.missingKeys,
+            missingLabels: coverage.missingLabels,
+            queries,
+            source: 'auto-queue',
+            nowIso
+          })
+        ),
         auditLog: appendAuditLog(current.auditLog, {
           at: nowIso,
           level: 'warning',
@@ -508,6 +540,7 @@ async function saveResearchRecord(record: CompanyResearchRecord): Promise<Awaite
       queue: current.resume
         ? reconcileScoredQueue(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy, research })
         : current.queue,
+      pendingResearchTargets: refreshPendingResearchTargets(current.pendingResearchTargets, jobs, research, nowIso),
       auditLog: appendAuditLog(current.auditLog, {
         at: nowIso,
         level: record.warnings.length > 0 ? 'warning' : 'info',
@@ -552,6 +585,80 @@ function mergeJobs(existing: JobPosting[], incoming: JobPosting[]): JobPosting[]
 
 function shouldPauseForMissingResearch(job: JobPosting, policy: QueuePolicy, research: CompanyResearchRecord[]): boolean {
   return policy.mode === 'auto' && policy.requireResearchBeforeAuto && !getResearchCoverageForJob(job, research).complete;
+}
+
+function createPendingResearchTarget(input: {
+  companyName: string;
+  jobTitle?: string;
+  jobId?: string;
+  platform?: JobPosting['platform'];
+  missingKeys: PendingResearchTarget['missingKeys'];
+  missingLabels: string[];
+  queries: ResearchQuery[];
+  source: PendingResearchTarget['source'];
+  nowIso: string;
+}): PendingResearchTarget {
+  return {
+    id: pendingResearchTargetId(input.companyName, input.jobTitle, input.platform, input.jobId),
+    companyName: input.companyName.trim(),
+    jobTitle: input.jobTitle?.trim() || undefined,
+    jobId: input.jobId,
+    platform: input.platform,
+    missingKeys: input.missingKeys,
+    missingLabels: input.missingLabels,
+    queries: input.queries.map((query) => query.query),
+    source: input.source,
+    createdAt: input.nowIso,
+    updatedAt: input.nowIso
+  };
+}
+
+function upsertPendingResearchTarget(targets: PendingResearchTarget[], target: PendingResearchTarget): PendingResearchTarget[] {
+  const existing = targets.find((item) => item.id === target.id);
+  const next = { ...target, createdAt: existing?.createdAt ?? target.createdAt };
+  return [next, ...targets.filter((item) => item.id !== target.id)].slice(0, 30);
+}
+
+function refreshPendingResearchTargets(
+  targets: PendingResearchTarget[],
+  jobs: JobPosting[],
+  research: CompanyResearchRecord[],
+  nowIso: string
+): PendingResearchTarget[] {
+  return targets.flatMap((target) => {
+    const job = findPendingResearchJob(target, jobs);
+    if (!job) return [target];
+
+    const coverage = getResearchCoverageForJob(job, research);
+    if (coverage.complete) return [];
+
+    const queries = getMissingResearchQueriesForJob(job, research);
+    return [{
+      ...target,
+      missingKeys: coverage.missingKeys,
+      missingLabels: coverage.missingLabels,
+      queries: queries.map((query) => query.query),
+      updatedAt: nowIso
+    }];
+  });
+}
+
+function findPendingResearchJob(target: PendingResearchTarget, jobs: JobPosting[]): JobPosting | undefined {
+  if (target.jobId && target.platform) {
+    const directMatch = jobs.find((job) => job.id === target.jobId && job.platform === target.platform);
+    if (directMatch) return directMatch;
+  }
+
+  return jobs.find((job) => {
+    if (job.company.name !== target.companyName) return false;
+    if (!target.jobTitle) return true;
+    return job.title === target.jobTitle;
+  });
+}
+
+function pendingResearchTargetId(companyName: string, jobTitle?: string, platform?: JobPosting['platform'], jobId?: string): string {
+  if (platform && jobId) return `${platform}:${jobId}`;
+  return `${companyName.trim().toLowerCase()}::${jobTitle?.trim().toLowerCase() ?? ''}`;
 }
 
 async function openResearchQueryTabs(queries: ResearchQuery[]): Promise<number> {

@@ -13,6 +13,7 @@ describe('extension initial state', () => {
     expect(state.policy.requireResearchBeforeAuto).toBe(true);
     expect(state.queue.dayKey).toBe('2026-06-08');
     expect(state.research).toEqual([]);
+    expect(state.pendingResearchTargets).toEqual([]);
     expect(state.runner.enabled).toBe(false);
     expect(state.blacklist.map((rule) => rule.value)).toEqual(expect.arrayContaining(['外包', '单休', '培训']));
   });
@@ -44,5 +45,6 @@ describe('extension initial state', () => {
       mode: 'auto',
       requireResearchBeforeAuto: true
     });
+    expect(state.pendingResearchTargets).toEqual([]);
   });
 });

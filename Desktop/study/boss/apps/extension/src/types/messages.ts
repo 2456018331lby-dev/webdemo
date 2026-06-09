@@ -5,6 +5,7 @@ import type {
   CompanyResearchRecord,
   JobPosting,
   PageSafetySnapshot,
+  PlatformId,
   QueuePolicy,
   ResearchCriterionKey,
   ResumeProfile
@@ -18,7 +19,7 @@ export type RuntimeMessage =
   | { type: 'SET_BLACKLIST'; blacklist: BlacklistRule[] }
   | { type: 'SAVE_RESEARCH'; record: CompanyResearchRecord }
   | { type: 'OPEN_RESEARCH_SEARCH'; companyName: string; jobTitle?: string }
-  | { type: 'OPEN_RESEARCH_SEARCHES'; companyName: string; jobTitle?: string; criteria?: ResearchCriterionKey[] }
+  | { type: 'OPEN_RESEARCH_SEARCHES'; companyName: string; jobTitle?: string; criteria?: ResearchCriterionKey[]; jobId?: string; platform?: PlatformId }
   | { type: 'CAPTURE_ACTIVE_RESEARCH'; companyName: string; jobTitle?: string }
   | { type: 'SCAN_ACTIVE_TAB' }
   | { type: 'CONTENT_EXTRACT_JOBS' }
