@@ -395,7 +395,15 @@ async function runNextApplicationAction(nowIso: string, source: 'manual' | 'auto
       : await prepareApplicationInTab(runnable.job, effectivePolicy.mode);
     return {
       ...current,
-      queue: markQueueItemAttempted(queue, runnable.id, nowIso, effectivePolicy, attempt.ok, attempt.pauseReason),
+      queue: markQueueItemAttempted(
+        queue,
+        runnable.id,
+        nowIso,
+        effectivePolicy,
+        attempt.ok,
+        attempt.pauseReason,
+        attempt.countAsApplication ?? attempt.ok
+      ),
       runner: source === 'automation' ? { ...current.runner, lastTickAt: nowIso } : current.runner,
       auditLog: appendAuditLog(current.auditLog, {
         at: nowIso,
@@ -404,7 +412,7 @@ async function runNextApplicationAction(nowIso: string, source: 'manual' | 'auto
         platform: runnable.job.platform,
         jobId: runnable.job.id,
         message: attempt.message,
-        metadata: { source, pauseReason: attempt.pauseReason }
+        metadata: { source, pauseReason: attempt.pauseReason, countAsApplication: attempt.countAsApplication ?? attempt.ok }
       })
     };
   });

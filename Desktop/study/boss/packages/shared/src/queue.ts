@@ -145,15 +145,16 @@ export function markQueueItemAttempted(
   nowIso: string,
   policyInput: Partial<QueuePolicy>,
   ok: boolean,
-  pauseReason: QueueItem['pauseReason'] = 'platform-warning'
+  pauseReason: QueueItem['pauseReason'] = 'platform-warning',
+  countAsApplication = ok
 ): QueueState {
   const policy = { ...defaultQueuePolicy, ...policyInput };
-  const applicationsToday = ok ? state.applicationsToday + 1 : state.applicationsToday;
+  const applicationsToday = countAsApplication ? state.applicationsToday + 1 : state.applicationsToday;
 
   return {
     ...state,
     applicationsToday,
-    lastApplicationAt: ok ? nowIso : state.lastApplicationAt,
+    lastApplicationAt: countAsApplication ? nowIso : state.lastApplicationAt,
     items: state.items.map((item) => {
       if (item.id !== itemId) return item;
 

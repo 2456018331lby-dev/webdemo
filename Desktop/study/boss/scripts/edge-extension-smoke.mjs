@@ -600,6 +600,7 @@ async function verifyQueueAutoApply(client, port, resume, nowIso) {
     const response = await sendRuntimeMessage(client, { type: 'RUN_NEXT_APPLICATION' });
     const item = response.state?.queue?.items?.find((queueItem) => queueItem.job.id === job.id);
     assert(item?.status === 'completed', `Expected background auto queue item to complete, got ${item?.status}`);
+    assert(response.state?.queue?.applicationsToday === 1, `Expected real queue auto apply to consume one daily application, got ${response.state?.queue?.applicationsToday}`);
     assert(response.state?.auditLog?.[0]?.action === 'apply.recorded', `Expected apply.recorded audit log, got ${response.state?.auditLog?.[0]?.action}`);
     assert(response.state?.auditLog?.[0]?.message?.includes('成功信号'), `Expected queue auto apply success signal, got ${response.state?.auditLog?.[0]?.message}`);
 
@@ -636,6 +637,7 @@ async function verifyAlreadyAppliedCompletion(client, port, resume, nowIso) {
     const response = await sendRuntimeMessage(client, { type: 'RUN_NEXT_APPLICATION' });
     const item = response.state?.queue?.items?.find((queueItem) => queueItem.job.id === job.id);
     assert(item?.status === 'completed', `Expected already-applied queue item to complete, got ${item?.status}`);
+    assert(response.state?.queue?.applicationsToday === 0, `Expected already-applied completion not to consume daily application quota, got ${response.state?.queue?.applicationsToday}`);
     assert(response.state?.auditLog?.[0]?.action === 'apply.recorded', `Expected apply.recorded audit log, got ${response.state?.auditLog?.[0]?.action}`);
     assert(response.state?.auditLog?.[0]?.message?.includes('已投递'), `Expected already-applied message, got ${response.state?.auditLog?.[0]?.message}`);
 

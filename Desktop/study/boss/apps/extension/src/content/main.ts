@@ -56,6 +56,7 @@ async function prepareApplicationOnPage(job: JobPosting, mode: Exclude<Applicati
       ok: true,
       mode,
       jobId: job.id,
+      countAsApplication: false,
       message: `页面已显示“${existingStatus}”，该岗位视为已投递/已沟通。`
     };
   }

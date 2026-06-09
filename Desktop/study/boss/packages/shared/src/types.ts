@@ -168,6 +168,7 @@ export interface ApplyAttemptResult {
   jobId: string;
   pauseReason?: PauseReason;
   message: string;
+  countAsApplication?: boolean;
 }
 
 export interface PlatformAdapter {

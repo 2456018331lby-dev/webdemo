@@ -85,6 +85,26 @@ describe('queue policy', () => {
     expect(attempted.items[0]?.pauseReason).toBe('manual-review-required');
   });
 
+  it('can complete an already-applied item without consuming daily application quota', () => {
+    const state = enqueueScoredJobs(emptyState, [{ job, score }], {
+      nowIso: '2026-06-08T01:00:00.000Z',
+      policy: { mode: 'auto' }
+    });
+    const completed = markQueueItemAttempted(
+      state,
+      state.items[0]!.id,
+      '2026-06-08T01:00:02.000Z',
+      { minMinutesBetweenActions: 8 },
+      true,
+      undefined,
+      false
+    );
+
+    expect(completed.items[0]?.status).toBe('completed');
+    expect(completed.applicationsToday).toBe(0);
+    expect(completed.lastApplicationAt).toBeUndefined();
+  });
+
   it('keeps jobs grouped inside the best-ranked company before moving to the next company', () => {
     const bestCompanyHighJob = {
       job: { ...job, id: 'a-high', company: { name: 'Alpha', tags: [] } },
