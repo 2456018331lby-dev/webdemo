@@ -9,7 +9,7 @@
 - 保留 `.omx/project-memory.json`，删除 `.omx/logs/` 这类运行日志
 
 ### 文档瘦身
-- `project-handoff.md` 删除逐条本地截图路径清单，改为说明截图/MCP 快照属于临时 QA 产物，已清理，需要时重新生成
+- `project-handoff.md` 和 `progress-log.md` 删除逐条本地截图路径清单，改为说明截图/MCP 快照属于临时 QA 产物，已清理，需要时重新生成
 - `project-handoff.md` 将重复 native git push 失败记录收敛为当前三类状态：GitHub MCP 凭据失败、native git transport/token 失败、Git Data API fallback 可用
 - 源码回归测试暂不删除：它们覆盖当前功能边界，尤其是 Push subscription endpoint/key 不会被备份导出或恢复
 
@@ -52,8 +52,7 @@
   - 点击恢复后 `role="status"` 显示“已恢复 2 项本机状态”，默认入口为 `devices`，密度为 `compact`，Push subscription 仍保留当前浏览器 endpoint
   - `/settings` 移动端 `393x852`：`scrollWidth=393`，恢复面板宽 319px，恢复按钮宽 285px，三条恢复项均在视口内
   - Console errors / page errors: 0
-- 截图证据：
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-local-backup-restore-chromium.png`
+- 截图证据：当轮使用 Playwright 截图完成视觉核对；本地截图文件已在后续生成产物清理中删除，需要时重新生成。
 
 ### GitHub 状态
 - 本轮本地 commit 已完成：`80875f4` (`Make local backups recoverable without restoring secrets`)
@@ -93,10 +92,7 @@
   - `/settings` 桌面约 `1280x900`：备份卡片可见，点击后 `role="status"` 显示“已导出本机数据备份”，无横向溢出
   - `/settings` 移动端 `393x852`：`scrollWidth=393`，导出按钮满宽，三项指标单列收拢
   - Console errors / page errors: 0；浏览器安装提示信息为非错误日志
-- 截图证据：
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-local-backup-chromium.png`
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-settings-local-backup-desktop.png`
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-settings-local-backup-mobile.png`
+- 截图证据：当轮使用 Playwright 截图完成桌面 / 移动端视觉核对；本地截图文件已在后续生成产物清理中删除，需要时重新生成。
 
 ### GitHub 状态
 - 本轮本地 commit 已完成：`928da2c` (`Let operators export local app state safely`)
@@ -136,9 +132,7 @@
   - `/offline` 移动端 `393x852`：`scrollWidth=393`，恢复按钮可见，compact 安装提示未遮挡恢复动作
   - “查看最近日志”点击后导航到 `/activity`
   - Console errors / page errors: 0
-- 截图证据：
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-offline-recovery-desktop.png`
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-offline-recovery-mobile.png`
+- 截图证据：当轮使用 Playwright 截图完成桌面 / 移动端视觉核对；本地截图文件已在后续生成产物清理中删除，需要时重新生成。
 
 ### GitHub 状态
 - 本轮本地 commit 已完成：`Make offline recovery actionable inside the PWA shell`
@@ -676,9 +670,7 @@
 - `npx playwright test tests/e2e/prod-shell.spec.ts`：2 个测试全部通过
 
 ### 证据
-- 截图：
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-home-desktop-chromium.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-device-mobile-chromium.png`
+- 当轮使用 Playwright 截图完成首页和移动端设备详情视觉核对；本地截图文件已在后续生成产物清理中删除，需要时重新生成。
 
 ### Android 现状
 - 已验证 Android Chrome 安装 PWA 路径可作为当前移动端直接使用方案
