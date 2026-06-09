@@ -6,7 +6,6 @@ import {
   createSafeApplyAttempt,
   createResearchFromPage,
   enforceQueuePolicy,
-  enqueueScoredJobs,
   evaluatePageSafety,
   getMissingResearchQueriesForJob,
   getNextActionableItem,
@@ -196,7 +195,7 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
           : [];
 
         const nextQueue = current.resume
-          ? enqueueScoredJobs(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy })
+          ? reconcileScoredQueue(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy, research: current.research })
           : current.queue;
 
         return {
@@ -223,7 +222,7 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
         const scoredJobs = message.jobs.map((job) => ({ job, score: scoreJob(job, current.resume!, { blacklist: current.blacklist, research: current.research }) }));
         return {
           ...current,
-          queue: enqueueScoredJobs(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy })
+          queue: reconcileScoredQueue(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy, research: current.research })
         };
       });
       return { ok: true, state };
@@ -570,7 +569,7 @@ function captureResearchPageText(): { url: string; title: string; text: string }
 }
 
 function getKnownJobs(state: ExtensionState): JobPosting[] {
-  return mergeJobs(state.jobs, state.queue.items.map((item) => item.job));
+  return mergeJobs(state.queue.items.map((item) => item.job), state.jobs);
 }
 
 function scoreJobsForResume(

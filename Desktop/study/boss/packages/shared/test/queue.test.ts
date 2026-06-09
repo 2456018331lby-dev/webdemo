@@ -170,6 +170,42 @@ describe('queue policy', () => {
     expect(reconciled.items[0]?.pauseReason).toBe('blacklisted');
   });
 
+  it('refreshes existing queued job details and score when the same posting is rescanned', () => {
+    const oldJob: JobPosting = {
+      ...job,
+      salary: { min: 8000, max: 10_000, currency: 'CNY', period: 'month', raw: '8-10K' },
+      description: 'React 页面开发。'
+    };
+    const newJob: JobPosting = {
+      ...oldJob,
+      salary: { min: 35_000, max: 45_000, currency: 'CNY', period: 'month', raw: '35-45K' },
+      description: 'React TypeScript 平台研发，五险一金，年终奖，周末双休，带薪年假。',
+      tags: ['React', 'TypeScript', '五险一金', '年终奖', '双休', '带薪年假']
+    };
+    const queued = enqueueScoredJobs(emptyState, [{
+      job: oldJob,
+      score: { ...score, score: 58, compensationScore: 9, companyScore: 30 }
+    }], {
+      nowIso: '2026-06-08T01:00:00.000Z',
+      policy: { mode: 'dry-run' }
+    });
+
+    const reconciled = reconcileScoredQueue(queued, [{
+      job: newJob,
+      score: { ...score, score: 96, compensationScore: 80, companyScore: 76 }
+    }], {
+      nowIso: '2026-06-08T01:10:00.000Z',
+      policy: { mode: 'dry-run' }
+    });
+
+    expect(reconciled.items).toHaveLength(1);
+    expect(reconciled.items[0]?.job.salary?.raw).toBe('35-45K');
+    expect(reconciled.items[0]?.job.description).toContain('年终奖');
+    expect(reconciled.items[0]?.score.score).toBe(96);
+    expect(reconciled.items[0]?.score.compensationScore).toBe(80);
+    expect(reconciled.items[0]?.updatedAt).toBe('2026-06-08T01:10:00.000Z');
+  });
+
   it('keeps apply recommendations in needs-approval status in manual mode after rescoring', () => {
     const queued = enqueueScoredJobs(emptyState, [{ job, score }], {
       nowIso: '2026-06-08T01:00:00.000Z',

@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -56,9 +56,21 @@ try {
     assert(queuedIds[0] === 'edge-high-salary', `Expected high salary job first, got ${queuedIds.join(', ')}`);
     assert((queuedItems[0]?.score?.compensationScore ?? 0) > (queuedItems[1]?.score?.compensationScore ?? 0), 'Expected high salary compensation score to beat low salary score');
 
+    const rescannedLowSalaryAsBetterJob = {
+      ...jobs[1],
+      salary: { min: 50_000, max: 60_000, currency: 'CNY', period: 'month', raw: '50-60K' },
+      description: 'React TypeScript 核心平台研发，五险一金，16薪，周末双休，带薪年假。',
+      tags: ['React', 'TypeScript', '五险一金', '16薪', '双休', '带薪年假']
+    };
+    const rescanned = await sendRuntimeMessage(client, { type: 'QUEUE_JOBS', jobs: [rescannedLowSalaryAsBetterJob] });
+    const rescannedItems = rescanned.state?.queue?.items ?? [];
+    const updatedLowSalary = rescannedItems.find((item) => item.job.id === 'edge-low-salary');
+    assert(updatedLowSalary?.job?.salary?.raw === '50-60K', `Expected rescanned job salary to update, got ${updatedLowSalary?.job?.salary?.raw}`);
+    assert(updatedLowSalary?.score?.score > queuedItems[1].score.score, 'Expected rescanned job score to improve after richer salary/details');
+
     const dryRun = await sendRuntimeMessage(client, { type: 'RUN_NEXT_DRY_RUN' });
-    const completedFirst = dryRun.state?.queue?.items?.find((item) => item.job.id === 'edge-high-salary');
-    assert(completedFirst?.status === 'completed', `Expected first dry-run item completed, got ${completedFirst?.status}`);
+    const completedFirst = dryRun.state?.queue?.items?.find((item) => item.status === 'completed');
+    assert(completedFirst?.job?.id === rescannedItems[0]?.job?.id, `Expected dry-run to execute current top-ranked item ${rescannedItems[0]?.job?.id}, got ${completedFirst?.job?.id}`);
     assert(dryRun.state?.auditLog?.[0]?.message?.includes('不会点击投递按钮'), 'Expected dry-run audit log to state no real click happened');
 
     const summary = {
@@ -66,8 +78,10 @@ try {
       extensionId: getExtensionId(sidepanelTarget.url),
       defaultMode: defaultState.state.policy.mode,
       rankedJobIds: queuedIds,
+      rescannedTopJobId: rescannedItems[0]?.job?.id,
       highSalaryScore: queuedItems[0].score.score,
-      lowSalaryScore: queuedItems[1].score.score,
+      lowSalaryScoreBeforeRescan: queuedItems[1].score.score,
+      lowSalaryScoreAfterRescan: updatedLowSalary.score.score,
       dryRunStatus: completedFirst.status,
       dist: extensionDist
     };
@@ -164,6 +178,16 @@ async function targetContainsMarker(port, target) {
 }
 
 function getCandidateExtensionIds(targets, userDataDir) {
+  const preferredIds = new Set();
+  for (const file of [
+    path.join(userDataDir, 'Default', 'Secure Preferences'),
+    path.join(userDataDir, 'Default', 'Preferences')
+  ]) {
+    for (const id of getExtensionIdsFromPreferences(file)) preferredIds.add(id);
+  }
+
+  if (preferredIds.size > 0) return Array.from(preferredIds);
+
   const ids = new Set();
   for (const target of targets) {
     const match = target.url?.match(/^chrome-extension:\/\/([a-p]{32})\//);
@@ -180,7 +204,30 @@ function getCandidateExtensionIds(targets, userDataDir) {
     }
   }
 
-  return ids;
+  return Array.from(ids);
+}
+
+function getExtensionIdsFromPreferences(file) {
+  if (!existsSync(file)) return [];
+
+  try {
+    const data = JSON.parse(readFileSync(file, 'utf8'));
+    const settings = data?.extensions?.settings ?? {};
+    return Object.entries(settings)
+      .filter(([id, value]) => /^[a-p]{32}$/.test(id) && isLoadedFromDist(value))
+      .map(([id]) => id);
+  } catch {
+    return [];
+  }
+}
+
+function isLoadedFromDist(value) {
+  const extensionPath = typeof value?.path === 'string' ? path.resolve(value.path) : '';
+  return normalizePath(extensionPath) === normalizePath(extensionDist);
+}
+
+function normalizePath(value) {
+  return path.resolve(value).replace(/\\/g, '/').toLowerCase();
 }
 
 async function waitForSidePanelReady(client) {

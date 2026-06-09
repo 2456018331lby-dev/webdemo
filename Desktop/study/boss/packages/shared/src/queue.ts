@@ -67,7 +67,7 @@ export function reconcileScoredQueue(
   const nextItems = state.items.map((item) => {
     const scored = scoredByKey.get(getJobKey(item.job));
     if (!scored) return item;
-    return reconcileQueueItem(item, scored.score, options.nowIso, policy, options.research ?? []);
+    return reconcileQueueItem(item, scored.job, scored.score, options.nowIso, policy, options.research ?? []);
   });
 
   return enqueueScoredJobs({ ...state, items: nextItems }, scoredJobs, options);
@@ -143,14 +143,15 @@ function sortQueue(items: QueueItem[]): QueueItem[] {
   return flattenRankedQueueItems(items);
 }
 
-function reconcileQueueItem(item: QueueItem, score: JobScore, nowIso: string, policy: QueuePolicy, research: CompanyResearchRecord[]): QueueItem {
+function reconcileQueueItem(item: QueueItem, job: JobPosting, score: JobScore, nowIso: string, policy: QueuePolicy, research: CompanyResearchRecord[]): QueueItem {
   if (item.status === 'completed' || item.status === 'in-progress') {
-    return { ...item, score, updatedAt: nowIso };
+    return { ...item, job, score, updatedAt: nowIso };
   }
 
   if (score.triggeredBlacklistRules.length > 0) {
     return {
       ...item,
+      job,
       score,
       status: 'skipped',
       updatedAt: nowIso,
@@ -162,6 +163,7 @@ function reconcileQueueItem(item: QueueItem, score: JobScore, nowIso: string, po
   if (score.recommendation !== 'apply' || policy.mode === 'manual-approval') {
     return {
       ...item,
+      job,
       score,
       status: 'needs-approval',
       updatedAt: nowIso,
@@ -173,6 +175,7 @@ function reconcileQueueItem(item: QueueItem, score: JobScore, nowIso: string, po
   if (item.status === 'paused' && shouldKeepPaused(item, policy, research)) {
     return {
       ...item,
+      job,
       score,
       updatedAt: nowIso
     };
@@ -182,6 +185,7 @@ function reconcileQueueItem(item: QueueItem, score: JobScore, nowIso: string, po
 
   return {
     ...item,
+    job,
     score,
     status: 'queued',
     updatedAt: nowIso,
