@@ -34,7 +34,7 @@ The app is currently runnable with the in-memory backend. Supabase, Android pack
 - Device list with search, type/status filters, favorites, saved views, CSV/JSON export
 - Device detail with command control, cooldown, command lifecycle display, command history
 - Activity log with filters, saved views, CSV export
-- Settings center with local preferences, notification rules, notification inbox, push readiness checks, local backup export/restore, and persisted device maintenance state
+- Settings center with local preferences, notification rules, notification inbox, push readiness checks, local backup export/restore, persisted device maintenance state, and a reset path back to the default device list
 - Device ingest endpoint with optional `X-Device-Token`
 - Command API with simulator mode and `SMART_HOME_COMMAND_DELIVERY=polling` for ESP32S3 pending-command polling
 - Desired state and reported state are kept separate; `delivered` means ESP32S3 has fetched the command, not that STM32H743 has acknowledged execution
@@ -70,6 +70,7 @@ The app is currently runnable with the in-memory backend. Supabase, Android pack
 
 ## Latest Verification
 
+- 2026-06-09 settings device maintenance reset: `npm test -- --run` passed, 26 files / 120 tests; `npm run lint` passed; `npm run build` passed; `playwright test tests/e2e/prod-shell.spec.ts` passed, 15 tests; desktop/mobile no-output smoke verified reset dialog and final state without horizontal overflow. Build and e2e artifacts were deleted after verification.
 - 2026-06-09 settings device maintenance persistence: `npm test -- --run` passed, 26 files / 119 tests; `npm run lint` passed with no warnings; `npm run build` passed; `playwright test tests/e2e/prod-shell.spec.ts` passed, 15 tests. Build and e2e artifacts were deleted after verification.
 - 2026-06-09 cleanup verification: `npm test -- --run` passed, 25 files / 114 tests; `npm run lint` passed; `npm run build` passed; `playwright test tests/e2e/prod-shell.spec.ts` passed, 15 tests.
 - 2026-06-09 cleanup artifact check: no `.next`, `coverage`, `test-results`, `playwright-report`, `output`, `.playwright-mcp`, or `.omx` directory remained after verification; port 3000 was stopped.
@@ -107,7 +108,7 @@ Use Lore-style commit messages with trailers. Keep commits scoped and reviewable
 ## Next Useful Work
 
 1. Fix GitHub MCP credentials so publication can use the requested MCP path.
-2. Add a UI affordance for clearing locally customized settings-device state back to seed devices, if operators need a reset path separate from factory reset.
+2. Add account/backend migration for settings-device state after Supabase linking, keeping local state as an import/export fallback.
 3. Link Supabase and run migrations, then smoke test `SMART_HOME_BACKEND=supabase`.
 4. Implement ESP32S3 pending-command polling and `X-Device-Token` handling on firmware.
 5. Configure Web Push VAPID key and persist subscriptions server-side.

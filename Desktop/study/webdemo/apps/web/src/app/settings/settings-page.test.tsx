@@ -85,4 +85,35 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("heading", { name: "主灯继电器 Pro" })).toBeVisible();
     expect(screen.getByText(/继电器 · 温馨公寓 · 书房/)).toBeInTheDocument();
   });
+
+  it("clears local device maintenance overrides back to seed devices", () => {
+    render(<SettingsPage />);
+
+    const resetButton = screen.getByRole("button", { name: "恢复默认清单" });
+    expect(resetButton).toBeDisabled();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "编辑配置" })[0]);
+    const editDialog = screen.getByRole("dialog", { name: "编辑设备配置" });
+    fireEvent.change(within(editDialog).getByLabelText("设备名称"), {
+      target: { value: "主灯继电器 Pro" }
+    });
+    fireEvent.click(within(editDialog).getByRole("button", { name: "保存配置" }));
+
+    expect(window.localStorage.getItem(SETTINGS_DEVICES_STORAGE_KEY)).not.toBeNull();
+    expect(screen.getByRole("button", { name: "恢复默认清单" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "恢复默认清单" }));
+    const resetDialog = screen.getByRole("dialog", { name: "恢复默认设备清单" });
+    expect(within(resetDialog).getByText("当前来源")).toBeInTheDocument();
+    expect(within(resetDialog).getByText("本机覆盖")).toBeInTheDocument();
+
+    fireEvent.click(within(resetDialog).getByRole("button", { name: "确认恢复默认" }));
+
+    expect(screen.queryByRole("dialog", { name: "恢复默认设备清单" })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(SETTINGS_DEVICES_STORAGE_KEY)).toBeNull();
+    expect(screen.queryByRole("heading", { name: "主灯继电器 Pro" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "主灯继电器" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "恢复默认清单" })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("已恢复默认设备维护清单");
+  });
 });

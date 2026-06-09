@@ -1286,6 +1286,14 @@ a {
   font-weight: 700;
 }
 
+.settings-maintenance-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .settings-device-list {
   display: grid;
   gap: 14px;
@@ -3778,12 +3786,22 @@ a {
 
   .settings-device-topline,
   .settings-device-status,
-  .settings-actions-row {
+  .settings-actions-row,
+  .settings-maintenance-actions {
     align-items: flex-start;
   }
 
   .settings-device-topline {
     flex-direction: column;
+  }
+
+  .settings-maintenance-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .settings-maintenance-actions .btn {
+    flex: 1 1 150px;
   }
 
   .settings-device-status {

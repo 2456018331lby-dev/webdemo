@@ -290,6 +290,7 @@ export default function SettingsPage() {
   const [devices, setDevices] = useState<DeviceConfig[]>(seedDevices);
   const [selectedDevice, setSelectedDevice] = useState<DeviceConfig | null>(null);
   const [factoryResetTarget, setFactoryResetTarget] = useState<DeviceConfig | null>(null);
+  const [resetDeviceMaintenancePending, setResetDeviceMaintenancePending] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", room: "" });
   const [showAddDevice, setShowAddDevice] = useState(false);
@@ -316,6 +317,7 @@ export default function SettingsPage() {
   const [localBackupFileName, setLocalBackupFileName] = useState<string | null>(null);
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>(defaultUserPreferences);
+  const [hasDeviceMaintenanceOverride, setHasDeviceMaintenanceOverride] = useState(false);
   const hasSkippedInitialPreferenceSave = useRef(false);
   const devicesRef = useRef<DeviceConfig[]>(seedDevices);
   const localBackupInputRef = useRef<HTMLInputElement | null>(null);
@@ -324,8 +326,10 @@ export default function SettingsPage() {
     const restoredNotificationView = parseNotificationInboxView(
       window.localStorage.getItem(NOTIFICATION_INBOX_VIEW_STORAGE_KEY)
     );
+    const storedDeviceMaintenance = window.localStorage.getItem(SETTINGS_DEVICES_STORAGE_KEY);
 
-    applyDeviceMaintenanceState(parseSettingsDevices(window.localStorage.getItem(SETTINGS_DEVICES_STORAGE_KEY), seedDevices));
+    applyDeviceMaintenanceState(parseSettingsDevices(storedDeviceMaintenance, seedDevices));
+    setHasDeviceMaintenanceOverride(storedDeviceMaintenance !== null);
     setPreferences(parseUserPreferences(window.localStorage.getItem(USER_PREFERENCES_STORAGE_KEY)));
     setNotificationItems(parseNotificationInbox(window.localStorage.getItem(NOTIFICATION_INBOX_STORAGE_KEY)));
     setSavedNotificationView(restoredNotificationView);
@@ -492,6 +496,7 @@ export default function SettingsPage() {
     setFactoryResetTarget(null);
     setIsEditing(false);
     setShowAddDevice(false);
+    setResetDeviceMaintenancePending(false);
     setLocalBackupRestorePlan(null);
     setLocalBackupFileName(null);
     showOperationResult(`已恢复 ${restoredCount} 项本机状态，脱敏订阅已跳过`, 4200);
@@ -517,6 +522,7 @@ export default function SettingsPage() {
     const normalizedDevices = normalizeSettingsDevices(nextDevices);
     devicesRef.current = normalizedDevices;
     setDevices(normalizedDevices);
+    setHasDeviceMaintenanceOverride(true);
     window.localStorage.setItem(SETTINGS_DEVICES_STORAGE_KEY, serializeSettingsDevices(normalizedDevices));
   }
 
@@ -817,6 +823,18 @@ export default function SettingsPage() {
     setFactoryResetTarget(device);
   }
 
+  function confirmResetDeviceMaintenance() {
+    window.localStorage.removeItem(SETTINGS_DEVICES_STORAGE_KEY);
+    applyDeviceMaintenanceState(seedDevices);
+    setHasDeviceMaintenanceOverride(false);
+    setSelectedDevice(null);
+    setFactoryResetTarget(null);
+    setIsEditing(false);
+    setShowAddDevice(false);
+    setResetDeviceMaintenancePending(false);
+    showOperationResult("✅ 已恢复默认设备维护清单");
+  }
+
   function confirmFactoryReset() {
     if (!factoryResetTarget) {
       return;
@@ -880,7 +898,9 @@ export default function SettingsPage() {
         <div className="stat-card">
           <div className="stat-label">设备维护</div>
           <div className="stat-value">{devices.length}</div>
-          <div className="stat-change positive">{onlineCount} 台在线</div>
+          <div className="stat-change positive">
+            {onlineCount} 台在线 · {hasDeviceMaintenanceOverride ? "本机已覆盖" : "默认清单"}
+          </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">默认入口</div>
@@ -1542,9 +1562,20 @@ export default function SettingsPage() {
         <div className="card-header">
           <div>
             <h2 className="card-title card-title--md">设备维护</h2>
-            <p className="card-subtitle">查看注册信息，执行重启、编辑和恢复出厂动作。</p>
+            <p className="card-subtitle">查看注册信息，执行重启、编辑和恢复出厂动作；本机覆盖可随时恢复默认清单。</p>
           </div>
-          <div className="settings-count-pill">共 {devices.length} 台设备</div>
+          <div className="settings-maintenance-actions">
+            <div className="settings-count-pill">
+              {hasDeviceMaintenanceOverride ? "本机已覆盖" : "默认清单"} · 共 {devices.length} 台设备
+            </div>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setResetDeviceMaintenancePending(true)}
+              disabled={!hasDeviceMaintenanceOverride}
+            >
+              恢复默认清单
+            </button>
+          </div>
         </div>
 
         <div className="settings-device-list">
@@ -1640,6 +1671,53 @@ export default function SettingsPage() {
               </button>
               <button className="btn btn-ghost" onClick={() => setIsEditing(false)}>
                 取消
+              </button>
+            </div>
+          </section>
+        </>
+      )}
+
+      {resetDeviceMaintenancePending && (
+        <>
+          <div className="settings-backdrop" onClick={() => setResetDeviceMaintenancePending(false)} />
+          <section
+            className="card settings-modal settings-modal--danger"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reset-device-maintenance-title"
+          >
+            <div className="settings-danger-dialog">
+              <div className="settings-danger-dialog__icon">↺</div>
+              <div>
+                <p className="info-label">本机状态恢复</p>
+                <h2 id="reset-device-maintenance-title" className="card-title card-title--md">恢复默认设备清单</h2>
+                <p className="card-subtitle">
+                  这会清除本机保存的设备维护覆盖，包括新增设备、改名、房间调整、重启状态和恢复出厂结果。
+                </p>
+              </div>
+            </div>
+
+            <div className="settings-danger-summary">
+              <div>
+                <span>当前来源</span>
+                <strong>本机覆盖</strong>
+              </div>
+              <div>
+                <span>恢复后</span>
+                <strong>默认 seed 设备</strong>
+              </div>
+              <div>
+                <span>设备数量</span>
+                <strong>{seedDevices.length} 台</strong>
+              </div>
+            </div>
+
+            <div className="settings-actions-row">
+              <button className="btn btn-ghost" onClick={() => setResetDeviceMaintenancePending(false)}>
+                取消
+              </button>
+              <button className="btn btn-primary btn-danger-action" onClick={confirmResetDeviceMaintenance}>
+                确认恢复默认
               </button>
             </div>
           </section>

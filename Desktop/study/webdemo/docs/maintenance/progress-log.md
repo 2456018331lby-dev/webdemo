@@ -1,5 +1,32 @@
 # Progress Log
 
+## 2026-06-09 (设置设备维护恢复默认入口)
+
+### 优化目标
+- 让上轮新增的设备维护本机持久化有明确回退路径，避免本机新增设备、改名和恢复出厂状态长期累积后无法回到 seed 清单
+- 保持设置中心是运维工具界面：状态要可见、危险动作要应用内确认、移动端不能横向溢出
+- 继续遵守仓库瘦身要求，不保留截图、trace、report、build 输出或临时脚本
+
+### 代码变更
+- `/settings` 设备维护卡片新增“默认清单 / 本机已覆盖”状态和“恢复默认清单”按钮；没有本机覆盖时按钮禁用
+- 点击“恢复默认清单”打开应用内确认框，说明会清除本机新增设备、改名、房间调整、重启状态和恢复出厂结果
+- 确认后删除 `smart-home-settings-devices-v1`，恢复 seed 设备列表，关闭相关弹层并显示操作状态
+- `globals.css` 新增 `.settings-maintenance-actions`，让清单状态和恢复按钮在桌面紧凑排列、移动端自动换行
+
+### 测试
+- `settings-page.test.tsx` 新增“clears local device maintenance overrides back to seed devices”，覆盖按钮初始禁用、编辑后启用、确认恢复、localStorage 清空和默认设备恢复
+
+### 验证
+- `npm test -- --run apps/web/src/app/settings/settings-page.test.tsx apps/web/src/lib/settings-devices.test.ts apps/web/src/lib/local-app-backup.test.ts`：3 files / 11 tests 通过
+- `npm run lint`：通过
+- `npm test -- --run`：26 files / 120 tests 通过
+- `npm run build`：通过
+- `playwright test tests/e2e/prod-shell.spec.ts`：15 tests 通过
+- no-output Playwright smoke：`/settings` 桌面 `1366x900`、移动端 `390x844` 均完成“编辑设备 -> 打开恢复默认确认 -> 确认恢复”，`scrollWidth` 等于 viewport，dialog 没有越界，恢复后 `smart-home-settings-devices-v1` 为 `null`
+- 验证后已删除 `apps/web/.next/` 和 `test-results/`；未发现 `coverage`、`playwright-report`、`output`、`.playwright-mcp` 或 `.omx`
+
+---
+
 ## 2026-06-09 (设置设备维护持久化)
 
 ### 优化目标
