@@ -14,6 +14,7 @@ The goal is to freeze message shape before implementation expands.
 
 Each device must have:
 - `device_id`: public UUID used by app and backend
+- `device_token`: private token sent only in `X-Device-Token` for ingest authentication
 - `bridge_id`: unique ESP32S3 identity
 - `controller_id`: STM32H743 logical identity
 - `home_id`

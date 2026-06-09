@@ -7,6 +7,7 @@ import {
   getDeviceState,
   seedDeviceState
 } from "@/lib/server/device-runtime";
+import { DEVICE_TOKEN_HEADER, authenticateDeviceIngest } from "@/lib/server/device-token-auth";
 
 type RouteContext = {
   params: Promise<{
@@ -17,13 +18,15 @@ type RouteContext = {
 /**
  * 设备上行入口 — ESP32S3 调用此端点上报 ack 和遥测。
  *
- * 认证：X-Device-Token header（当前为占位，接入 Supabase 后启用验证）
+ * 认证：配置 SMART_HOME_DEVICE_TOKENS 后校验 X-Device-Token header。
  */
 export async function POST(request: NextRequest, context: RouteContext) {
   const { deviceId } = await context.params;
+  const auth = authenticateDeviceIngest(deviceId, request.headers.get(DEVICE_TOKEN_HEADER));
 
-  // TODO: 验证 X-Device-Token 与 deviceId 的绑定关系（Supabase 接入后）
-  void request.headers.get("x-device-token");
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
 
   try {
     const body = await request.json();

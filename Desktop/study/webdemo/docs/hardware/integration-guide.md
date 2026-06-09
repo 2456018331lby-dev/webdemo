@@ -118,6 +118,23 @@ STM32 端需要：
 
 ## 4. 设备上行 API
 
+### 4.0 设备认证
+
+`/api/devices/[deviceId]/ingest` 支持 `X-Device-Token` header 校验。
+
+后端配置项：
+
+```env
+SMART_HOME_DEVICE_TOKENS=device-relay-01=relay-secret,device-sensor-01=sensor-secret
+```
+
+规则：
+- 每一项使用 `deviceId=token`，多设备用逗号或换行分隔
+- 可用 `*=lab-token` 作为实验室通用 token；真实部署建议为每台设备配置独立 token
+- 配置了 `SMART_HOME_DEVICE_TOKENS` 后，ack / telemetry 上报必须携带匹配的 `X-Device-Token`
+- production 环境未配置 `SMART_HOME_DEVICE_TOKENS` 时，ingest 会返回 `503`，避免真实部署时设备上行裸奔
+- dev / test 环境未配置 token 时仍允许本地模拟，方便前端和生命周期测试
+
 ### 4.1 Ack 上报
 
 ```

@@ -1,5 +1,38 @@
 # Progress Log
 
+## 2026-06-09 (设备上行 token 校验)
+
+### 优化目标
+- 补上维护看板中明确的设备认证缺口，优先强化真实硬件接入边界，而不是继续堆前端页面
+- 现有 `POST /api/devices/[deviceId]/ingest` 已要求硬件文档携带 `X-Device-Token`，但 route 里仍是占位 TODO；本轮将占位升级为可配置校验
+
+### 代码变更
+- 新增 `apps/web/src/lib/server/device-token-auth.ts`
+- 支持 `SMART_HOME_DEVICE_TOKENS=device-relay-01=relay-secret,device-sensor-01=sensor-secret` 配置格式；也支持 `*=lab-token` 作为实验室通用 token
+- 配置了 `SMART_HOME_DEVICE_TOKENS` 后，缺失或错误 `X-Device-Token` 会返回 `401 Invalid device token`
+- production 环境未配置 token 时返回 `503 Device token authentication is not configured`，避免真实部署静默裸奔
+- dev / test 未配置 token 时仍保留本地模拟路径，避免阻断现有前端和生命周期测试
+- route 在解析 JSON 和 seed 状态前先做认证，未授权请求不会写入设备状态
+
+### 文档与配置
+- `.env.example` 新增 `SMART_HOME_DEVICE_TOKENS`
+- `docs/hardware/integration-guide.md` 增加设备认证配置说明、生产行为和 ESP32S3 header 要求
+- `docs/protocols/smart-home-mvp-device-contract.md` 的 Device Identity 增加 `device_token`
+
+### 验证
+- 先补失败用例：配置 token 后，缺失 token 的 telemetry ingest 仍返回 200；随后实现校验并转绿
+- `npm test -- --run apps/web/src/lib/server/device-token-auth.test.ts apps/web/src/app/api/devices/[deviceId]/ingest/route.test.ts`：2 files / 8 tests 通过
+- `npm run lint`：通过
+- `npm test -- --run`：24 files / 104 tests 通过
+- `npm run build`：通过
+- build 后已删除 `apps/web/.next/`，当前未保留新的测试截图、trace 或构建输出
+
+### GitHub 状态
+- 本轮仍按约定优先尝试 GitHub MCP；若继续返回 `Bad credentials`，使用 GitHub CLI Git Data API fallback 非强推发布
+- 实际提交哈希以 Git history 和最终发布回执为准，避免在同一提交内写入会自我失效的哈希
+
+---
+
 ## 2026-06-09 (CSV 导出公式注入防护)
 
 ### 优化目标
