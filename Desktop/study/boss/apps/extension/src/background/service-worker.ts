@@ -684,8 +684,20 @@ async function openQueueResearchSearches(
 
   const state = await updateState((current) => {
     const plannedTargets = planQueueResearchTargets(current.queue.items, current.research, limit);
-    queriesToOpen = plannedTargets.flatMap((target) => target.queries);
-    targetCount = plannedTargets.length;
+    const alreadyPendingQueries = new Set(current.pendingResearchTargets.flatMap((target) => target.queries.map(normalizeResearchQuery)));
+    const targetsWithNewQueries = new Set<string>();
+    queriesToOpen = [];
+
+    for (const target of plannedTargets) {
+      for (const query of target.queries) {
+        const normalizedQuery = normalizeResearchQuery(query.query);
+        if (!normalizedQuery || alreadyPendingQueries.has(normalizedQuery)) continue;
+        alreadyPendingQueries.add(normalizedQuery);
+        queriesToOpen.push(query);
+        targetsWithNewQueries.add(target.item.id);
+      }
+    }
+    targetCount = targetsWithNewQueries.size;
 
     if (plannedTargets.length === 0) {
       return {
@@ -698,6 +710,10 @@ async function openQueueResearchSearches(
         })
       };
     }
+
+    const runnerMessage = updateRunnerMessage
+      ? getResearchPreflightRunnerMessage(plannedTargets.length, queriesToOpen.length)
+      : undefined;
 
     const pendingResearchTargets = plannedTargets.reduce(
       (targets, target) => upsertPendingResearchTarget(
@@ -722,15 +738,17 @@ async function openQueueResearchSearches(
       runner: updateRunnerMessage
         ? {
           ...current.runner,
-          message: `自动队列已启动，已先为 ${plannedTargets.length} 个高优先级岗位打开 ${queriesToOpen.length} 个资料搜索。`
+          message: runnerMessage
         }
         : current.runner,
       pendingResearchTargets,
       auditLog: appendAuditLog(current.auditLog, {
         at: nowIso,
         level: 'info',
-        action: 'research.preflight.opened',
-        message: `已按队列排序为 ${plannedTargets.length} 个岗位打开 ${queriesToOpen.length} 个缺失资料搜索。`,
+        action: queriesToOpen.length > 0 ? 'research.preflight.opened' : 'research.preflight.deduped',
+        message: queriesToOpen.length > 0
+          ? `已按队列排序为 ${targetCount} 个岗位打开 ${queriesToOpen.length} 个缺失资料搜索。`
+          : `队列预检发现 ${plannedTargets.length} 个岗位已有待补资料搜索，未重复打开标签页。`,
         metadata: {
           targetJobIds: plannedTargets.map((target) => target.item.job.id),
           queries: queriesToOpen.map((query) => query.query)
@@ -741,6 +759,11 @@ async function openQueueResearchSearches(
 
   if (queriesToOpen.length > 0) await openResearchQueryTabs(queriesToOpen);
   return { state, targetCount, queryCount: queriesToOpen.length };
+}
+
+function getResearchPreflightRunnerMessage(targetCount: number, queryCount: number): string {
+  if (queryCount > 0) return `自动队列已启动，已先为 ${targetCount} 个高优先级岗位打开 ${queryCount} 个资料搜索。`;
+  return `自动队列已启动，已有 ${targetCount} 个高优先级岗位待补全网资料，等待资料采集后继续。`;
 }
 
 function normalizeQueueResearchLimit(limitInput: number | undefined): number {

@@ -126,6 +126,7 @@ try {
       automationPreflightSearches: automationPreflight.openedSearches,
       queueResearchPreflightTarget: queueResearchPreflight.targetJobId,
       queueResearchPreflightSearches: queueResearchPreflight.openedSearches,
+      queueResearchDuplicateSearches: queueResearchPreflight.duplicateSearches,
       queueExplanationRendered: queueExplanation.rendered,
       queueAutoApplyCompleted: queueAutoApply.completedJobId,
       alreadyAppliedCompleted: alreadyApplied.completedJobId,
@@ -460,10 +461,15 @@ async function verifyQueueResearchPreflight(client, expectedJobId) {
 
   const openedSearches = await closeBingSearchTabs(client);
   assert(openedSearches.length >= target.queries.length, `Expected opened Bing tabs for preflight queries, got ${JSON.stringify(openedSearches)}`);
+  const repeated = await sendRuntimeMessage(client, { type: 'OPEN_QUEUE_RESEARCH_SEARCHES', limit: 1 });
+  assert(repeated.state?.auditLog?.[0]?.action === 'research.preflight.deduped', `Expected duplicate preflight to be deduped, got ${repeated.state?.auditLog?.[0]?.action}`);
+  const duplicateSearches = await closeBingSearchTabs(client);
+  assert(duplicateSearches.length === 0, `Expected duplicate preflight not to open new Bing tabs, got ${JSON.stringify(duplicateSearches)}`);
 
   return {
     targetJobId: target.jobId,
     openedSearches: openedSearches.length,
+    duplicateSearches: duplicateSearches.length,
     missingKeys: target.missingKeys
   };
 }
