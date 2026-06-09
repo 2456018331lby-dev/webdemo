@@ -20,7 +20,7 @@ The repository should stay lean:
 - [x] Device ingest and downlink APIs with device token support
 - [x] Device favorites, filters, saved views, and exports
 - [x] Activity filters, saved views, and CSV export with formula-injection protection
-- [x] Settings center: local preferences, notifications, push readiness, notification inbox, backup export/restore, device maintenance
+- [x] Settings center: local preferences, notifications, push readiness, notification inbox, backup export/restore, persisted device maintenance
 - [x] Hardware and protocol documentation for ESP32S3, STM32H743, UART, ingest, ack, and telemetry
 - [x] Supabase schema, RLS policies, edge function skeleton, and server backend implementation
 - [x] Regression coverage: 114 Vitest tests before this cleanup
@@ -38,9 +38,10 @@ The repository should stay lean:
 
 ### App Logic
 
-- [ ] Persist `/settings` device maintenance edits across browser sessions
-- [ ] Include persisted device maintenance state in local backup/restore
-- [ ] Add a focused regression test for settings device maintenance persistence
+- [x] Persist `/settings` device maintenance edits across browser sessions
+- [x] Include persisted device maintenance state in local backup/restore
+- [x] Add focused regression tests for settings device maintenance persistence
+- [ ] Consider a settings-device reset action that clears local maintenance overrides back to seed devices
 
 ### Hardware
 

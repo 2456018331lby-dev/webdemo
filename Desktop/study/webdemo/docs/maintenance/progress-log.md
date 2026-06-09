@@ -1,5 +1,33 @@
 # Progress Log
 
+## 2026-06-09 (设置设备维护持久化)
+
+### 优化目标
+- 补齐 `/settings` 设备维护的本机状态边界：编辑、新增、重启和恢复出厂不应只停留在当前 React 页面状态
+- 让设备维护状态进入本机备份/恢复流程，方便后续迁移到 Supabase 或跨浏览器交接前核对
+- 保持仓库瘦身要求：不新增依赖、不保留截图、trace、report 或 build 产物
+
+### 代码变更
+- 新增 `apps/web/src/lib/settings-devices.ts`，统一管理设置设备维护状态的 `localStorage` key、schema、解析、序列化、归一化和 custom device id 生成
+- `/settings` 首次加载和本机备份恢复后读取 `smart-home-settings-devices-v1`，编辑/新增/重启/恢复出厂后写回该状态
+- 本机备份已知状态项新增“设备维护状态”；备份导出/恢复页面文案同步说明设备维护会进入 JSON 快照
+- 设置页恢复本机备份后会关闭设备编辑、添加和恢复出厂弹层，避免恢复后的旧弹层继续引用过期设备
+
+### 测试
+- 新增 `settings-devices.test.ts`，覆盖设备维护状态序列化/解析、坏数据回退 seed、custom device id 递增
+- `local-app-backup.test.ts` 新增设备维护状态导出和恢复覆盖
+- `settings-page.test.tsx` 新增编辑设备后跨 remount 保留的回归
+
+### 验证
+- `npm test -- --run apps/web/src/lib/settings-devices.test.ts apps/web/src/lib/local-app-backup.test.ts apps/web/src/app/settings/settings-page.test.tsx`：3 files / 10 tests 通过
+- `npm test -- --run`：26 files / 119 tests 通过
+- `npm run lint`：通过且无 warning
+- `npm run build`：通过
+- `playwright test tests/e2e/prod-shell.spec.ts`：15 tests 通过
+- 验证后已删除 `apps/web/.next/` 和 `test-results/`；未发现 `coverage`、`playwright-report`、`output`、`.playwright-mcp` 或 `.omx`
+
+---
+
 ## 2026-06-09 (仓库清理与冗余收敛)
 
 ### 清理目标

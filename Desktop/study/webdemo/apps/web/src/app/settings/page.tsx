@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   USER_PREFERENCES_STORAGE_KEY,
@@ -77,19 +77,14 @@ import {
   type PushSubscriptionRecord,
   type PushSubscriptionSyncRecord
 } from "@/lib/push-notifications";
-
-type DeviceConfig = {
-  id: string;
-  name: string;
-  type: string;
-  room: string;
-  home: string;
-  online: boolean;
-  lastSeen: string;
-  firmware: string;
-  ip: string;
-  mac: string;
-};
+import {
+  SETTINGS_DEVICES_STORAGE_KEY,
+  createNextSettingsDeviceId,
+  normalizeSettingsDevices,
+  parseSettingsDevices,
+  serializeSettingsDevices,
+  type SettingsDeviceConfig as DeviceConfig
+} from "@/lib/settings-devices";
 
 const seedDevices: DeviceConfig[] = [
   {
@@ -322,13 +317,35 @@ export default function SettingsPage() {
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>(defaultUserPreferences);
   const hasSkippedInitialPreferenceSave = useRef(false);
+  const devicesRef = useRef<DeviceConfig[]>(seedDevices);
   const localBackupInputRef = useRef<HTMLInputElement | null>(null);
+
+  const refreshLocalStateFromStorage = useCallback(() => {
+    const restoredNotificationView = parseNotificationInboxView(
+      window.localStorage.getItem(NOTIFICATION_INBOX_VIEW_STORAGE_KEY)
+    );
+
+    applyDeviceMaintenanceState(parseSettingsDevices(window.localStorage.getItem(SETTINGS_DEVICES_STORAGE_KEY), seedDevices));
+    setPreferences(parseUserPreferences(window.localStorage.getItem(USER_PREFERENCES_STORAGE_KEY)));
+    setNotificationItems(parseNotificationInbox(window.localStorage.getItem(NOTIFICATION_INBOX_STORAGE_KEY)));
+    setSavedNotificationView(restoredNotificationView);
+
+    if (restoredNotificationView) {
+      setNotificationFilter(restoredNotificationView.filter);
+      setNotificationAdvancedFilters(restoredNotificationView.advancedFilters);
+    } else {
+      setNotificationFilter("all");
+      setNotificationAdvancedFilters(defaultNotificationInboxAdvancedFilters);
+    }
+
+    setPushSyncRecord(parsePushSubscriptionSyncRecord(window.localStorage.getItem(PUSH_SUBSCRIPTION_SYNC_STORAGE_KEY)));
+  }, []);
 
   useEffect(() => {
     refreshLocalStateFromStorage();
     setPreferencesHydrated(true);
     void refreshPushState();
-  }, []);
+  }, [refreshLocalStateFromStorage]);
 
   useEffect(() => {
     if (!preferencesHydrated) {
@@ -471,6 +488,10 @@ export default function SettingsPage() {
 
     const restoredCount = applyLocalAppBackupRestorePlan(window.localStorage, localBackupRestorePlan);
     refreshLocalStateFromStorage();
+    setSelectedDevice(null);
+    setFactoryResetTarget(null);
+    setIsEditing(false);
+    setShowAddDevice(false);
     setLocalBackupRestorePlan(null);
     setLocalBackupFileName(null);
     showOperationResult(`已恢复 ${restoredCount} 项本机状态，脱敏订阅已跳过`, 4200);
@@ -481,29 +502,26 @@ export default function SettingsPage() {
     setLocalBackupFileName(null);
   }
 
-  function refreshLocalStateFromStorage() {
-    const restoredNotificationView = parseNotificationInboxView(
-      window.localStorage.getItem(NOTIFICATION_INBOX_VIEW_STORAGE_KEY)
-    );
-
-    setPreferences(parseUserPreferences(window.localStorage.getItem(USER_PREFERENCES_STORAGE_KEY)));
-    setNotificationItems(parseNotificationInbox(window.localStorage.getItem(NOTIFICATION_INBOX_STORAGE_KEY)));
-    setSavedNotificationView(restoredNotificationView);
-
-    if (restoredNotificationView) {
-      setNotificationFilter(restoredNotificationView.filter);
-      setNotificationAdvancedFilters(restoredNotificationView.advancedFilters);
-    } else {
-      setNotificationFilter("all");
-      setNotificationAdvancedFilters(defaultNotificationInboxAdvancedFilters);
-    }
-
-    setPushSyncRecord(parsePushSubscriptionSyncRecord(window.localStorage.getItem(PUSH_SUBSCRIPTION_SYNC_STORAGE_KEY)));
-  }
-
   function persistNotificationInbox(nextItems: NotificationInboxItem[]) {
     setNotificationItems(nextItems);
     window.localStorage.setItem(NOTIFICATION_INBOX_STORAGE_KEY, serializeNotificationInbox(nextItems));
+  }
+
+  function applyDeviceMaintenanceState(nextDevices: DeviceConfig[]) {
+    const normalizedDevices = normalizeSettingsDevices(nextDevices);
+    devicesRef.current = normalizedDevices;
+    setDevices(normalizedDevices);
+  }
+
+  function persistDeviceMaintenance(nextDevices: DeviceConfig[]) {
+    const normalizedDevices = normalizeSettingsDevices(nextDevices);
+    devicesRef.current = normalizedDevices;
+    setDevices(normalizedDevices);
+    window.localStorage.setItem(SETTINGS_DEVICES_STORAGE_KEY, serializeSettingsDevices(normalizedDevices));
+  }
+
+  function updateDeviceMaintenance(updater: (current: DeviceConfig[]) => DeviceConfig[]) {
+    persistDeviceMaintenance(updater(devicesRef.current));
   }
 
   function updateNotificationState(id: string, state: NotificationInboxState) {
@@ -740,16 +758,17 @@ export default function SettingsPage() {
 
     const nextName = editForm.name.trim();
     const nextRoom = editForm.room.trim();
+    const updatedAt = new Date().toISOString();
 
-    setDevices((current) =>
+    updateDeviceMaintenance((current) =>
       current.map((device) =>
         device.id === selectedDevice.id
-          ? { ...device, name: nextName, room: nextRoom, lastSeen: new Date().toISOString() }
+          ? { ...device, name: nextName, room: nextRoom, lastSeen: updatedAt }
           : device
       )
     );
     setSelectedDevice((current) =>
-      current ? { ...current, name: nextName, room: nextRoom, lastSeen: new Date().toISOString() } : current
+      current ? { ...current, name: nextName, room: nextRoom, lastSeen: updatedAt } : current
     );
     setIsEditing(false);
     showOperationResult(`✅ 已保存 ${nextName} 的配置`);
@@ -763,9 +782,8 @@ export default function SettingsPage() {
       return;
     }
 
-    const nextIndex = devices.filter((device) => device.id.startsWith("device-custom-")).length + 1;
     const device: DeviceConfig = {
-      id: `device-custom-${nextIndex}`,
+      id: createNextSettingsDeviceId(devicesRef.current),
       name,
       type: newDevice.type,
       room,
@@ -777,7 +795,7 @@ export default function SettingsPage() {
       mac: "待配对"
     };
 
-    setDevices((current) => [device, ...current]);
+    updateDeviceMaintenance((current) => [device, ...current]);
     setShowAddDevice(false);
     setNewDevice({ name: "", type: "relay-controller", room: "", home: "温馨公寓" });
     showOperationResult(`✅ 已添加新设备: ${name}`);
@@ -786,7 +804,7 @@ export default function SettingsPage() {
   function handleRestart(device: DeviceConfig) {
     showOperationResult(`🔄 正在重启 ${device.name}...`, 1800);
     window.setTimeout(() => {
-      setDevices((current) =>
+      updateDeviceMaintenance((current) =>
         current.map((item) =>
           item.id === device.id ? { ...item, online: true, lastSeen: new Date().toISOString() } : item
         )
@@ -808,7 +826,7 @@ export default function SettingsPage() {
     setFactoryResetTarget(null);
     showOperationResult(`🔄 正在恢复 ${device.name} 出厂设置...`, 1800);
     window.setTimeout(() => {
-      setDevices((current) =>
+      updateDeviceMaintenance((current) =>
         current.map((item) =>
           item.id === device.id ? { ...item, online: false, room: "未分配", lastSeen: new Date().toISOString() } : item
         )
@@ -1044,7 +1062,7 @@ export default function SettingsPage() {
             </div>
             <h2 className="card-title card-title--md">导出与恢复本机操作状态</h2>
             <p className="card-subtitle">
-              生成或恢复 JSON 快照，包含本机偏好、收藏、筛选视图和通知队列；推送订阅只导出脱敏摘要且不会恢复密钥。
+              生成或恢复 JSON 快照，包含本机偏好、设备维护、收藏、筛选视图和通知队列；推送订阅只导出脱敏摘要且不会恢复密钥。
             </p>
           </div>
           <div className="local-backup-actions">
@@ -1069,7 +1087,7 @@ export default function SettingsPage() {
           <div className="local-backup-metric">
             <span>覆盖状态项</span>
             <strong>{localAppBackupItems.length}</strong>
-            <small>偏好 / 视图 / 通知</small>
+            <small>偏好 / 设备 / 通知</small>
           </div>
           <div className="local-backup-metric">
             <span>敏感处理</span>

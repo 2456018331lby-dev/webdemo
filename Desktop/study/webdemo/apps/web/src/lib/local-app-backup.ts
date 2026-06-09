@@ -8,6 +8,7 @@ import {
   getPushEndpointFingerprint,
   parsePushSubscriptionRecord
 } from "./push-notifications";
+import { SETTINGS_DEVICES_STORAGE_KEY } from "./settings-devices";
 import { USER_PREFERENCES_STORAGE_KEY } from "./user-preferences";
 
 export const LOCAL_APP_BACKUP_SCHEMA_VERSION = 1;
@@ -69,6 +70,7 @@ export type LocalAppBackupRestorePlan = {
 
 export const localAppBackupItems = [
   { key: USER_PREFERENCES_STORAGE_KEY, label: "本机偏好" },
+  { key: SETTINGS_DEVICES_STORAGE_KEY, label: "设备维护状态" },
   { key: DEVICE_FAVORITES_STORAGE_KEY, label: "收藏设备" },
   { key: DEVICE_FILTER_VIEW_STORAGE_KEY, label: "设备筛选视图" },
   { key: ACTIVITY_LOG_VIEW_STORAGE_KEY, label: "活动日志筛选视图" },

@@ -10,6 +10,7 @@ import {
 } from "./local-app-backup";
 import { DEVICE_FAVORITES_STORAGE_KEY } from "./device-list";
 import { PUSH_SUBSCRIPTION_STORAGE_KEY } from "./push-notifications";
+import { SETTINGS_DEVICES_STORAGE_KEY } from "./settings-devices";
 import { USER_PREFERENCES_STORAGE_KEY } from "./user-preferences";
 
 function createStorage(values: Record<string, string>) {
@@ -159,6 +160,54 @@ describe("local app backup", () => {
     );
     expect(JSON.parse(storage.getItem(DEVICE_FAVORITES_STORAGE_KEY) ?? "[]")).toEqual(["device-relay-01"]);
     expect(storage.getItem(PUSH_SUBSCRIPTION_STORAGE_KEY)).toBe("existing-subscription-record");
+  });
+
+  it("includes settings device maintenance state in backup and restore", () => {
+    const deviceState = {
+      schemaVersion: 1,
+      updatedAt: "2026-06-09T08:00:00.000Z",
+      devices: [
+        {
+          id: "device-relay-01",
+          name: "主灯继电器 Pro",
+          type: "relay-controller",
+          room: "书房",
+          home: "温馨公寓",
+          online: true,
+          lastSeen: "2026-06-09T08:00:00.000Z",
+          firmware: "v1.2.3",
+          ip: "192.168.1.101",
+          mac: "AA:BB:CC:DD:EE:01"
+        }
+      ]
+    };
+    const backup = buildLocalAppBackup(
+      createStorage({
+        [SETTINGS_DEVICES_STORAGE_KEY]: JSON.stringify(deviceState)
+      }),
+      new Date("2026-06-09T08:05:00.000Z")
+    );
+    const storage = createMutableStorage({});
+    const plan = createLocalAppBackupRestorePlan(storage, backup);
+
+    expect(backup.entries.find((entry) => entry.key === SETTINGS_DEVICES_STORAGE_KEY)).toEqual(
+      expect.objectContaining({
+        label: "设备维护状态",
+        present: true,
+        value: expect.objectContaining({
+          devices: [expect.objectContaining({ name: "主灯继电器 Pro", room: "书房" })]
+        })
+      })
+    );
+    expect(plan.items.find((item) => item.key === SETTINGS_DEVICES_STORAGE_KEY)).toEqual(
+      expect.objectContaining({
+        status: "restore",
+        restoreValue: JSON.stringify(deviceState)
+      })
+    );
+
+    expect(applyLocalAppBackupRestorePlan(storage, plan)).toBe(1);
+    expect(JSON.parse(storage.getItem(SETTINGS_DEVICES_STORAGE_KEY) ?? "{}")).toEqual(deviceState);
   });
 
   it("rejects malformed backup text and skips parse-error values", () => {
