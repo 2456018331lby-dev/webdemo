@@ -21,6 +21,21 @@ describe('automation safety', () => {
     expect(decision.pauseReason).toBe('captcha-detected');
   });
 
+  it('pauses when the page asks for resume selection or upload before applying', () => {
+    const decision = evaluatePageSafety({ url: 'https://example.com', title: '申请职位', bodyText: '请选择简历并上传简历附件后继续投递' });
+
+    expect(decision.safe).toBe(false);
+    expect(decision.pauseReason).toBe('missing-required-field');
+    expect(decision.message).toContain('选择简历');
+  });
+
+  it('pauses when required application fields are empty', () => {
+    const decision = evaluatePageSafety({ url: 'https://example.com', title: '申请职位', bodyText: '申请职位', hasRequiredEmptyFields: true });
+
+    expect(decision.safe).toBe(false);
+    expect(decision.pauseReason).toBe('missing-required-field');
+  });
+
   it('allows dry-run without real page clicks', () => {
     const decision = evaluatePageSafety({ url: 'https://example.com', title: '岗位详情', bodyText: '立即沟通' });
     const attempt = createSafeApplyAttempt(job, 'dry-run', decision);
@@ -38,7 +53,7 @@ describe('automation safety', () => {
   });
 
   it('rejects unsafe low interval policy', () => {
-    const decision = enforceQueuePolicy({ dailyLimit: 20, maxQueueSize: 100, minMinutesBetweenActions: 1, mode: 'auto' }, 0);
+    const decision = enforceQueuePolicy({ dailyLimit: 20, maxQueueSize: 100, minMinutesBetweenActions: 1, mode: 'auto', requireResearchBeforeAuto: true }, 0);
 
     expect(decision.safe).toBe(false);
     expect(decision.pauseReason).toBe('rate-limit');

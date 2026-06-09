@@ -1,4 +1,4 @@
-import { createSafeApplyAttempt, evaluatePageSafety, getAdapterForUrl } from '@job-assistant/shared';
+import { APPLICATION_REQUIREMENT_KEYWORDS, createSafeApplyAttempt, evaluatePageSafety, getAdapterForUrl } from '@job-assistant/shared';
 import type { ApplicationMode, ApplyAttemptResult, JobPosting } from '@job-assistant/shared';
 import type { RuntimeMessage } from '../types/messages';
 
@@ -33,7 +33,7 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
 const APPLY_TEXT_KEYWORDS = ['立即沟通', '投递简历', '立即投递', '申请职位', '申请岗位', '我要应聘', '继续沟通', '沟通', 'apply'];
 const DISABLED_TEXT_KEYWORDS = ['已投递', '已沟通', '停止招聘', '已下线', '不可投递'];
 const SUCCESS_TEXT_KEYWORDS = ['投递成功', '申请成功', '已投递', '已申请', '沟通成功', '已沟通', '简历已发送', '发送成功'];
-const MANUAL_CONFIRM_TEXT_KEYWORDS = ['确认投递', '确认发送', '发送简历', '选择简历', '上传简历', '完善简历', '打招呼', '附加信息', '补充信息', '请选择', '确认'];
+const MANUAL_CONFIRM_TEXT_KEYWORDS = ['确认投递', '确认发送', '发送简历', '打招呼', '请选择', '确认', ...APPLICATION_REQUIREMENT_KEYWORDS];
 const HIGHLIGHT_STYLE_ID = 'job-assistant-apply-highlight-style';
 
 async function prepareApplicationOnPage(job: JobPosting, mode: Exclude<ApplicationMode, 'dry-run'>): Promise<ApplyAttemptResult> {
@@ -152,8 +152,16 @@ function getDialogText(): string {
 }
 
 function hasRequiredEmptyFields(): boolean {
-  return Array.from(document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('input[required], textarea[required], select[required]'))
-    .some((field) => !field.value?.trim());
+  const requiredFields = Array.from(document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
+    'input[required], textarea[required], select[required], input[aria-required="true"], textarea[aria-required="true"], select[aria-required="true"]'
+  )).some((field) => {
+    if (field instanceof HTMLInputElement && (field.type === 'checkbox' || field.type === 'radio')) return !field.checked;
+    return !field.value?.trim();
+  });
+  if (requiredFields) return true;
+
+  return Array.from(document.querySelectorAll<HTMLElement>('[contenteditable="true"][aria-required="true"], [role="textbox"][aria-required="true"]'))
+    .some((field) => !visibleText(field));
 }
 
 function waitForPageReaction(): Promise<void> {

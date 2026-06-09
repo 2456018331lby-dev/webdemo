@@ -17,6 +17,19 @@ export interface SafetyDecision {
 const CAPTCHA_KEYWORDS = ['验证码', 'captcha', '安全验证', '滑块验证', '人机验证'];
 const LOGIN_KEYWORDS = ['登录', 'login', 'sign in', '请先登录'];
 const PLATFORM_WARNING_KEYWORDS = ['异常访问', '操作频繁', '访问受限', '账号安全', 'risk control'];
+export const APPLICATION_REQUIREMENT_KEYWORDS = [
+  '请选择简历',
+  '选择简历',
+  '上传简历',
+  '完善简历',
+  '补充信息',
+  '附加信息',
+  '必填',
+  'required field',
+  'please select resume',
+  'upload resume',
+  'cover letter'
+] as const;
 
 export function evaluatePageSafety(snapshot: PageSafetySnapshot): SafetyDecision {
   const text = `${snapshot.title}\n${snapshot.bodyText}`.toLowerCase();
@@ -31,6 +44,10 @@ export function evaluatePageSafety(snapshot: PageSafetySnapshot): SafetyDecision
 
   if (PLATFORM_WARNING_KEYWORDS.some((keyword) => text.includes(keyword.toLowerCase()))) {
     return { safe: false, pauseReason: 'platform-warning', message: '页面出现平台风险/频率提示，已暂停。' };
+  }
+
+  if (APPLICATION_REQUIREMENT_KEYWORDS.some((keyword) => text.includes(keyword.toLowerCase()))) {
+    return { safe: false, pauseReason: 'missing-required-field', message: '页面需要选择简历、上传附件或补充必填信息，已暂停等待人工处理。' };
   }
 
   if (snapshot.hasRequiredEmptyFields) {
