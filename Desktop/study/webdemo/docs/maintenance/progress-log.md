@@ -1,5 +1,36 @@
 # Progress Log
 
+## 2026-06-09 (仓库清理与冗余收敛)
+
+### 清理目标
+- 回应“不要留下冗余、旧版本、测试产物和垃圾文件”的要求
+- 保留后续仍会使用的源码和回归测试，删除确认无引用的旧计划文件
+- 阻断 e2e 测试继续生成 `output/qa-*.png` 截图文件
+
+### 清理变更
+- 删除旧 Superpowers 规划文档：`docs/superpowers/plans/2026-05-10-smart-home-system-mvp.md`
+- 删除旧 Superpowers 规格文档：`docs/superpowers/specs/2026-05-10-smart-home-system-design.md`
+- 删除空的 `docs/superpowers/` 目录
+- `tests/e2e/prod-shell.spec.ts` 移除截图 helper 和所有截图落盘调用，保留原有交互断言
+- `project-handoff.md` 从长篇历史改为当前状态、路由/API、验证、阻塞和下一步摘要
+- `task-board.md` 从逐条历史完成项改为能力组摘要和当前待办
+
+### 保留说明
+- 未删除 `apps/web/src/**/*.test.*` 和 `tests/e2e/prod-shell.spec.ts`，因为这些测试仍保护当前设置、命令、ingest、导出、PWA 和硬件边界
+- `progress-log.md` 按维护约定保持 append-only，只追加本条清理记录，不重写旧历史
+- `node_modules/` 保留为本地依赖目录，继续被 Git 忽略
+
+### 验证
+- 清理前行为锁：`npm test -- --run` 25 files / 114 tests 通过
+- 引用检查：生产 e2e 源文件不再包含截图 helper 或 `output/qa-*` 落盘调用；旧 Superpowers 文件没有代码引用
+- `npm test -- --run`：25 files / 114 tests 通过
+- `npm run lint`：通过
+- `npm run build`：通过
+- `playwright test tests/e2e/prod-shell.spec.ts`：15 tests 通过；首页 Service Worker 检查同步改为等待 `navigator.serviceWorker.ready`，避免两次读取 registration 的竞态
+- 验证后已删除 `apps/web/.next/` 和 `test-results/`；未发现 `coverage`、`playwright-report`、`output`、`.playwright-mcp` 或 `.omx`
+
+---
+
 ## 2026-06-09 (设置页危险操作确认)
 
 ### 优化目标

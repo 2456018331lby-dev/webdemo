@@ -32,18 +32,6 @@ async function readDownloadText(download: import("@playwright/test").Download) {
   return readFile(downloadPath, "utf8");
 }
 
-async function safeScreenshot(
-  page: import("@playwright/test").Page,
-  options: Parameters<import("@playwright/test").Page["screenshot"]>[0]
-) {
-  try {
-    await page.screenshot(options);
-  } catch {
-    await page.waitForTimeout(500);
-    await page.screenshot(options);
-  }
-}
-
 async function mockNotificationPermission(
   page: import("@playwright/test").Page,
   initialPermission: "default" | "granted" | "denied"
@@ -73,7 +61,7 @@ async function mockNotificationPermission(
   }, initialPermission);
 }
 
-test("production homepage exposes app shell and PWA assets", async ({ page, request }, testInfo) => {
+test("production homepage exposes app shell and PWA assets", async ({ page, request }) => {
   const collected = collectBrowserErrors(page);
 
   await page.goto("/");
@@ -86,11 +74,6 @@ test("production homepage exposes app shell and PWA assets", async ({ page, requ
   await expect(priorityCard.getByText("1 台设备离线")).toBeVisible();
   await expect(priorityCard.getByRole("link", { name: "打开总览" })).toBeVisible();
 
-  await safeScreenshot(page, {
-    path: `output/qa-home-desktop-${testInfo.project.name || "chromium"}.png`,
-    fullPage: true
-  });
-
   const manifestResponse = await request.get("/manifest.webmanifest");
   expect(manifestResponse.ok()).toBeTruthy();
   const manifest = await manifestResponse.json();
@@ -102,13 +85,8 @@ test("production homepage exposes app shell and PWA assets", async ({ page, requ
     ])
   );
 
-  await page.waitForFunction(async () => {
-    const registration = await navigator.serviceWorker.getRegistration("/");
-    return Boolean(registration?.active);
-  });
-
   const serviceWorkerUrl = await page.evaluate(async () => {
-    const registration = await navigator.serviceWorker.getRegistration("/");
+    const registration = await navigator.serviceWorker.ready;
     return registration?.active?.scriptURL ?? null;
   });
   expect(serviceWorkerUrl).toContain("/sw.js");
@@ -118,7 +96,7 @@ test("production homepage exposes app shell and PWA assets", async ({ page, requ
   expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
 });
 
-test("homes page refreshes the global health snapshot on demand", async ({ browser }, testInfo) => {
+test("homes page refreshes the global health snapshot on demand", async ({ browser }) => {
   const context = await browser.newContext({
     baseURL: "http://127.0.0.1:3000",
     serviceWorkers: "block"
@@ -212,11 +190,6 @@ test("homes page refreshes the global health snapshot on demand", async ({ brows
     expect(heroAudit.statusLeft).toBeGreaterThanOrEqual(heroAudit.heroLeft);
     expect(heroAudit.statusRight).toBeLessThanOrEqual(heroAudit.viewport);
 
-    await safeScreenshot(page, {
-      path: `output/qa-homes-refresh-${testInfo.project.name || "chromium"}.png`,
-      fullPage: false
-    });
-
     expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
     expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
   } finally {
@@ -224,7 +197,7 @@ test("homes page refreshes the global health snapshot on demand", async ({ brows
   }
 });
 
-test("offline page renders and device detail stays usable on mobile", async ({ browser }, testInfo) => {
+test("offline page renders and device detail stays usable on mobile", async ({ browser }) => {
   const context = await browser.newContext({
     viewport: { width: 393, height: 852 },
     isMobile: true,
@@ -254,18 +227,13 @@ test("offline page renders and device detail stays usable on mobile", async ({ b
   }));
   expect(widthAudit.scrollWidth).toBeLessThanOrEqual(widthAudit.viewport);
 
-  await safeScreenshot(page, {
-    path: `output/qa-device-mobile-${testInfo.project.name || "chromium"}.png`,
-    fullPage: true
-  });
-
   expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
   expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
 
   await context.close();
 });
 
-test("device control recovers after cooldown and accepts a second command", async ({ page }, testInfo) => {
+test("device control recovers after cooldown and accepts a second command", async ({ page }) => {
   const collected = collectBrowserErrors(page);
 
   await page.goto("/devices/device-relay-01");
@@ -291,16 +259,11 @@ test("device control recovers after cooldown and accepts a second command", asyn
   await expect(controlButton).toBeDisabled();
   await expect(page.getByRole("heading", { name: "命令历史" })).toBeVisible();
 
-  await safeScreenshot(page, {
-    path: `output/qa-device-cooldown-recovery-${testInfo.project.name || "chromium"}.png`,
-    fullPage: false
-  });
-
   expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
   expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
 });
 
-test("devices page persists favorites and filters to favorite devices", async ({ page }, testInfo) => {
+test("devices page persists favorites and filters to favorite devices", async ({ page }) => {
   const collected = collectBrowserErrors(page);
 
   await page.goto("/devices");
@@ -323,16 +286,11 @@ test("devices page persists favorites and filters to favorite devices", async ({
   await expect(page.getByRole("button", { name: "取消收藏 主灯继电器" })).toBeVisible();
   await expect(page.getByText("温湿度传感器")).not.toBeVisible();
 
-  await safeScreenshot(page, {
-    path: `output/qa-devices-favorites-${testInfo.project.name || "chromium"}.png`,
-    fullPage: false
-  });
-
   expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
   expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
 });
 
-test("devices page persists saved device filter views", async ({ page }, testInfo) => {
+test("devices page persists saved device filter views", async ({ page }) => {
   const collected = collectBrowserErrors(page);
 
   await page.goto("/devices");
@@ -392,16 +350,11 @@ test("devices page persists saved device filter views", async ({ page }, testInf
   await expect(page.getByText("未保存设备筛选视图")).toBeVisible();
   expect(await page.evaluate(() => window.localStorage.getItem("smart-home-device-filter-view-v1"))).toBeNull();
 
-  await safeScreenshot(page, {
-    path: `output/qa-devices-filter-view-${testInfo.project.name || "chromium"}.png`,
-    fullPage: false
-  });
-
   expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
   expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
 });
 
-test("activity and devices pages export filtered data", async ({ page }, testInfo) => {
+test("activity and devices pages export filtered data", async ({ page }) => {
   const collected = collectBrowserErrors(page);
 
   await page.goto("/activity");
@@ -441,16 +394,11 @@ test("activity and devices pages export filtered data", async ({ page }, testInf
     ])
   );
 
-  await safeScreenshot(page, {
-    path: `output/qa-export-actions-${testInfo.project.name || "chromium"}.png`,
-    fullPage: false
-  });
-
   expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
   expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
 });
 
-test("activity page persists saved log filter views", async ({ page }, testInfo) => {
+test("activity page persists saved log filter views", async ({ page }) => {
   const collected = collectBrowserErrors(page);
 
   await page.goto("/activity");
@@ -504,16 +452,11 @@ test("activity page persists saved log filter views", async ({ page }, testInfo)
   await expect(page.getByText("未保存日志筛选视图")).toBeVisible();
   expect(await page.evaluate(() => window.localStorage.getItem("smart-home-activity-log-view-v1"))).toBeNull();
 
-  await safeScreenshot(page, {
-    path: `output/qa-activity-log-view-${testInfo.project.name || "chromium"}.png`,
-    fullPage: false
-  });
-
   expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
   expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
 });
 
-test("settings page persists notification preferences and edits device metadata", async ({ page }, testInfo) => {
+test("settings page persists notification preferences and edits device metadata", async ({ page }) => {
   const collected = collectBrowserErrors(page);
 
   await mockNotificationPermission(page, "default");
@@ -554,16 +497,11 @@ test("settings page persists notification preferences and edits device metadata"
   await expect(page.getByRole("status")).toContainText("已保存 主灯继电器 Pro 的配置");
   await expect(page.getByRole("heading", { name: "主灯继电器 Pro" })).toBeVisible();
 
-  await safeScreenshot(page, {
-    path: `output/qa-settings-preferences-${testInfo.project.name || "chromium"}.png`,
-    fullPage: false
-  });
-
   expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
   expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
 });
 
-test("settings page exports a redacted local app backup", async ({ page }, testInfo) => {
+test("settings page exports a redacted local app backup", async ({ page }) => {
   const collected = collectBrowserErrors(page);
 
   await mockNotificationPermission(page, "granted");
@@ -635,16 +573,11 @@ test("settings page exports a redacted local app backup", async ({ page }, testI
   expect(backupText).not.toContain("e2e-auth-secret");
   await expect(page.getByRole("status")).toContainText("已导出本机数据备份");
 
-  await safeScreenshot(page, {
-    path: `output/qa-settings-local-backup-${testInfo.project.name || "chromium"}.png`,
-    fullPage: false
-  });
-
   expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
   expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
 });
 
-test("settings page previews and restores a local app backup", async ({ page }, testInfo) => {
+test("settings page previews and restores a local app backup", async ({ page }) => {
   const collected = collectBrowserErrors(page);
 
   await mockNotificationPermission(page, "granted");
@@ -753,16 +686,11 @@ test("settings page previews and restores a local app backup", async ({ page }, 
   expect(restored.pushSubscription).toContain("current-browser-subscription");
   expect(restored.pushSubscription).not.toContain("psh-restore-demo");
 
-  await safeScreenshot(page, {
-    path: `output/qa-settings-local-backup-restore-${testInfo.project.name || "chromium"}.png`,
-    fullPage: false
-  });
-
   expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
   expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
 });
 
-test("settings page manages notification inbox read and archive state", async ({ page }, testInfo) => {
+test("settings page manages notification inbox read and archive state", async ({ page }) => {
   const collected = collectBrowserErrors(page);
 
   await mockNotificationPermission(page, "granted");
@@ -814,16 +742,11 @@ test("settings page manages notification inbox read and archive state", async ({
   await expect(page.getByRole("status")).toContainText("已清除已归档通知");
   await expect(page.getByRole("tab", { name: /归档 0/ })).toBeVisible();
 
-  await safeScreenshot(page, {
-    path: `output/qa-settings-notification-inbox-${testInfo.project.name || "chromium"}.png`,
-    fullPage: false
-  });
-
   expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
   expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
 });
 
-test("settings page persists saved notification inbox views", async ({ page }, testInfo) => {
+test("settings page persists saved notification inbox views", async ({ page }) => {
   const collected = collectBrowserErrors(page);
 
   await mockNotificationPermission(page, "granted");
@@ -877,16 +800,11 @@ test("settings page persists saved notification inbox views", async ({ page }, t
   await expect(page.getByText("未保存通知筛选视图")).toBeVisible();
   expect(await page.evaluate(() => window.localStorage.getItem("smart-home-notification-inbox-view-v1"))).toBeNull();
 
-  await safeScreenshot(page, {
-    path: `output/qa-settings-notification-view-${testInfo.project.name || "chromium"}.png`,
-    fullPage: false
-  });
-
   expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
   expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
 });
 
-test("settings page surfaces granted notification readiness", async ({ page }, testInfo) => {
+test("settings page surfaces granted notification readiness", async ({ page }) => {
   const collected = collectBrowserErrors(page);
 
   await mockNotificationPermission(page, "granted");
@@ -911,16 +829,11 @@ test("settings page surfaces granted notification readiness", async ({ page }, t
   });
   expect(persistedInboxTitles).toContain("本地测试通知已发送");
 
-  await safeScreenshot(page, {
-    path: `output/qa-settings-push-readiness-${testInfo.project.name || "chromium"}.png`,
-    fullPage: false
-  });
-
   expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
   expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
 });
 
-test("settings page surfaces push subscription sync and resubscribe health", async ({ page }, testInfo) => {
+test("settings page surfaces push subscription sync and resubscribe health", async ({ page }) => {
   const collected = collectBrowserErrors(page);
 
   await mockNotificationPermission(page, "granted");
@@ -973,11 +886,6 @@ test("settings page surfaces push subscription sync and resubscribe health", asy
 
   await expect(page.getByText("建议重新订阅")).toBeVisible();
   await expect(page.getByText("订阅已超过 30 天")).toBeVisible();
-
-  await safeScreenshot(page, {
-    path: `output/qa-settings-push-sync-${testInfo.project.name || "chromium"}.png`,
-    fullPage: false
-  });
 
   expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
   expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
