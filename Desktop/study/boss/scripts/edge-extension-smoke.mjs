@@ -39,6 +39,9 @@ try {
       assert(text.includes(marker), `Expected side panel to contain ${marker}`);
     }
 
+    const importedResume = await verifyResumeFileImport(client);
+    await clearExtensionStorage(client);
+
     const nowIso = new Date().toISOString();
     const resume = {
       targetTitles: ['前端工程师'],
@@ -110,6 +113,8 @@ try {
       edge: await getBrowserVersion(port),
       extensionId: getExtensionId(sidepanelTarget.url),
       defaultMode: defaultState.state.policy.mode,
+      importedResumeTargets: importedResume.targetTitles,
+      importedResumeLocations: importedResume.targetLocations,
       scannedJobQueued: true,
       autoApplyClicked: true,
       autoResearchCaptured: autoResearch.recordCount,
@@ -343,6 +348,65 @@ function makeFakeBingSearchHtml() {
     </main>
   </body>
 </html>`;
+}
+
+async function verifyResumeFileImport(client) {
+  const importResult = await evaluate(
+    client,
+    `(() => {
+      const input = document.querySelector('[data-testid="resume-file-input"]');
+      if (!input) return { ok: false, reason: 'missing file input' };
+
+      const file = new File([
+        [
+          '姓名：王同学',
+          '求职意向：全栈工程师',
+          '期望城市：上海 / 远程',
+          '行业意向：SaaS',
+          '技能栈：React TypeScript Node',
+          '4年 Web 应用开发经验'
+        ].join('\\n')
+      ], 'resume-smoke.txt', { type: 'text/plain' });
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      input.files = dataTransfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+
+      return { ok: true, fileName: input.files?.[0]?.name };
+    })()`
+  );
+  assert(importResult?.ok, `Expected resume file import input to exist, got ${JSON.stringify(importResult)}`);
+  assert(importResult.fileName === 'resume-smoke.txt', `Expected smoke resume file to attach, got ${importResult.fileName}`);
+
+  let importedText = '';
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    importedText = await evaluate(client, `document.querySelector('[data-testid="resume-textarea"]')?.value ?? ''`);
+    if (importedText.includes('全栈工程师')) break;
+    await sleep(250);
+  }
+  assert(importedText.includes('全栈工程师'), `Expected imported resume text in textarea, got ${importedText}`);
+
+  await evaluate(client, `document.querySelector('[data-testid="save-resume-button"]')?.click()`);
+  const savedState = await waitForState(client, (state) => {
+    const resume = state.resume;
+    return Boolean(
+      resume?.targetTitles?.includes('全栈工程师') &&
+      resume?.targetLocations?.includes('上海') &&
+      resume?.skills?.includes('react')
+    );
+  });
+  const resume = savedState.resume;
+
+  assert(resume.targetLocations.includes('远程'), `Expected imported resume to infer remote preference, got ${resume.targetLocations.join(', ')}`);
+  assert(resume.skills.includes('typescript') && resume.skills.includes('node'), `Expected imported resume skills, got ${resume.skills.join(', ')}`);
+  assert(resume.yearsOfExperience === 4, `Expected imported resume to infer 4 years, got ${resume.yearsOfExperience}`);
+
+  return {
+    targetTitles: resume.targetTitles,
+    targetLocations: resume.targetLocations,
+    skills: resume.skills,
+    yearsOfExperience: resume.yearsOfExperience
+  };
 }
 
 async function verifyAutoResearchCapture(client, port, resume, nowIso) {

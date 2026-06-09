@@ -22,6 +22,7 @@ function SidePanelApp() {
   const [locations, setLocations] = useState('');
   const [skills, setSkills] = useState('');
   const [industries, setIndustries] = useState('');
+  const [resumeFileName, setResumeFileName] = useState('');
   const [researchCompany, setResearchCompany] = useState('');
   const [researchJobTitle, setResearchJobTitle] = useState('');
   const [researchUrl, setResearchUrl] = useState('');
@@ -57,6 +58,27 @@ function SidePanelApp() {
       setSkills(resume.skills.join(', '));
       setIndustries(resume.industries.join(', '));
     } else setError(response.error);
+  }
+
+  async function importResumeFile(file: File | undefined) {
+    if (!file) return;
+    if (!isReadableResumeFile(file)) {
+      setError('请导入 .txt、.md、.markdown、.html 或 .json 文本简历，PDF/Word 请先复制文本内容。');
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      if (!text.trim()) {
+        setError('导入的简历文件没有可读取文本。');
+        return;
+      }
+      setResumeText(text);
+      setResumeFileName(file.name);
+      setError(undefined);
+    } catch (readError) {
+      setError(`读取简历文件失败：${readError instanceof Error ? readError.message : String(readError)}`);
+    }
   }
 
   async function scanActiveTab() {
@@ -194,14 +216,16 @@ function SidePanelApp() {
 
       <section className="card">
         <h2>1. 简历画像</h2>
-        <textarea placeholder="粘贴简历文本；PDF/Word 解析接口已预留，MVP 先支持文本粘贴。" value={resumeText} onChange={(event) => setResumeText(event.target.value)} />
+        <input data-testid="resume-file-input" type="file" accept=".txt,.md,.markdown,.html,.htm,.json,text/plain,text/markdown,text/html,application/json" onChange={(event) => importResumeFile(event.target.files?.[0])} />
+        {resumeFileName && <p className="muted">已导入：{resumeFileName}</p>}
+        <textarea data-testid="resume-textarea" placeholder="粘贴或导入简历文本。" value={resumeText} onChange={(event) => setResumeText(event.target.value)} />
         <div className="row">
           <input placeholder="目标岗位（可从简历自动识别）" value={targets} onChange={(event) => setTargets(event.target.value)} aria-label="目标岗位" />
           <input placeholder="目标城市（可从简历自动识别）" value={locations} onChange={(event) => setLocations(event.target.value)} aria-label="目标城市" />
         </div>
         <input placeholder="技能（可从简历自动识别）" value={skills} onChange={(event) => setSkills(event.target.value)} aria-label="技能" />
         <input placeholder="目标行业（可从简历自动识别）" value={industries} onChange={(event) => setIndustries(event.target.value)} aria-label="目标行业" />
-        <button disabled={!resumeText.trim()} onClick={saveResume}>保存简历画像</button>
+        <button data-testid="save-resume-button" disabled={!resumeText.trim()} onClick={saveResume}>保存简历画像</button>
         {state?.resume && (
           <p className="muted">
             已保存：{state.resume.targetTitles.length} 个目标岗位，{state.resume.targetLocations.length} 个目标城市，{state.resume.skills.length} 个技能，{state.resume.industries.length} 个目标行业。
@@ -371,6 +395,13 @@ function SidePanelApp() {
 
 function splitCsv(value: string): string[] {
   return value.split(/[,，]/).map((item) => item.trim()).filter(Boolean);
+}
+
+function isReadableResumeFile(file: File): boolean {
+  const lowerName = file.name.toLowerCase();
+  if (file.type.startsWith('text/')) return true;
+  if (file.type === 'application/json') return true;
+  return ['.txt', '.md', '.markdown', '.html', '.htm', '.json'].some((extension) => lowerName.endsWith(extension));
 }
 
 function buildResearchSearchUrl(item: QueueItem): string {

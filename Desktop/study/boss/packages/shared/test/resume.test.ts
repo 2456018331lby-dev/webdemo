@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseResumeText } from '../src';
+import { parseResumeFile, parseResumeText } from '../src';
 
 describe('parseResumeText', () => {
   it('infers target titles, locations, industries, skills, and experience from resume intent fields', () => {
@@ -43,5 +43,26 @@ describe('parseResumeText', () => {
 
     expect(resume.targetTitles).toContain('前端工程师');
     expect(resume.targetLocations).toEqual([]);
+  });
+
+  it('parses resume text returned by a local file parser', async () => {
+    const file = { name: 'resume.txt' } as File;
+
+    const resume = await parseResumeFile(file, {
+      parse: async (receivedFile) => {
+        expect(receivedFile).toBe(file);
+        return [
+          '求职意向：全栈工程师',
+          '期望城市：上海 / 远程',
+          '技能：React TypeScript Node',
+          '4年 Web 应用开发经验'
+        ].join('\n');
+      }
+    });
+
+    expect(resume.targetTitles).toContain('全栈工程师');
+    expect(resume.targetLocations).toEqual(expect.arrayContaining(['上海', '远程']));
+    expect(resume.skills).toEqual(expect.arrayContaining(['react', 'typescript', 'node']));
+    expect(resume.yearsOfExperience).toBe(4);
   });
 });
