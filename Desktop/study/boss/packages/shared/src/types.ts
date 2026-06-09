@@ -116,6 +116,7 @@ export interface QueuePolicy {
   minMinutesBetweenActions: number;
   maxQueueSize: number;
   mode: ApplicationMode;
+  requireResearchBeforeAuto: boolean;
 }
 
 export type QueueItemStatus = 'queued' | 'needs-approval' | 'in-progress' | 'paused' | 'completed' | 'failed' | 'skipped';
@@ -140,6 +141,7 @@ export type PauseReason =
   | 'platform-warning'
   | 'blacklisted'
   | 'rate-limit'
+  | 'missing-research'
   | 'manual-review-required';
 
 export interface AuditLogEntry {
@@ -196,5 +198,6 @@ export const defaultQueuePolicy: QueuePolicy = {
   dailyLimit: 20,
   minMinutesBetweenActions: 8,
   maxQueueSize: 100,
-  mode: 'dry-run'
+  mode: 'dry-run',
+  requireResearchBeforeAuto: true
 };

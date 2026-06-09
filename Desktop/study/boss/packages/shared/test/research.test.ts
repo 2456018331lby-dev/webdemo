@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JobPosting, ResumeProfile } from '../src';
-import { buildResearchQuery, createResearchFromPage, parseCompanyResearch, scoreJob, scoreResearchSignal } from '../src';
+import { buildResearchQuery, createResearchFromPage, getResearchForJob, parseCompanyResearch, scoreJob, scoreResearchSignal } from '../src';
 
 const job: JobPosting = {
   id: 'job-1',
@@ -24,6 +24,32 @@ const resume: ResumeProfile = {
 describe('company research', () => {
   it('builds focused full-web search queries', () => {
     expect(buildResearchQuery('星河科技', '前端工程师')).toContain('星河科技 前端工程师 薪资 奖金 福利 双休 年假 加班 评价');
+  });
+
+  it('matches saved research by company and role before auto ranking uses it', () => {
+    const frontEndRecord = parseCompanyResearch({
+      companyName: '星河科技',
+      jobTitle: '前端工程师',
+      sourceUrl: 'https://example.com/front-end',
+      capturedAt: '2026-06-08T00:00:00.000Z',
+      summary: '前端工程师薪资 25-35K，五险一金，周末双休。'
+    });
+    const backendRecord = parseCompanyResearch({
+      companyName: '星河科技',
+      jobTitle: '后端工程师',
+      sourceUrl: 'https://example.com/backend',
+      capturedAt: '2026-06-08T00:00:00.000Z',
+      summary: '后端工程师薪资 25-35K，五险一金，周末双休。'
+    });
+    const otherCompanyRecord = parseCompanyResearch({
+      companyName: '远山科技',
+      jobTitle: '前端工程师',
+      sourceUrl: 'https://example.com/other',
+      capturedAt: '2026-06-08T00:00:00.000Z',
+      summary: '前端工程师薪资 20-30K，五险一金。'
+    });
+
+    expect(getResearchForJob(job, [frontEndRecord, backendRecord, otherCompanyRecord])).toEqual([frontEndRecord]);
   });
 
   it('parses pasted web evidence into ranking signals', () => {

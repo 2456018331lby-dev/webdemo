@@ -75,7 +75,7 @@ function normalizeState(state: Partial<ExtensionState>): ExtensionState {
     jobs: state.jobs ?? initial.jobs,
     research: state.research ?? initial.research,
     queue: state.queue ?? initial.queue,
-    policy: state.policy ?? initial.policy,
+    policy: { ...initial.policy, ...state.policy },
     blacklist: state.blacklist ?? initial.blacklist,
     auditLog: state.auditLog ?? initial.auditLog,
     runner: {

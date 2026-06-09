@@ -179,6 +179,14 @@ function SidePanelApp() {
             <input type="number" value={policy.dailyLimit} onChange={(event) => updatePolicy({ ...policy, dailyLimit: Number(event.target.value) })} />
           </div>
           <input type="number" value={policy.minMinutesBetweenActions} onChange={(event) => updatePolicy({ ...policy, minMinutesBetweenActions: Number(event.target.value) })} />
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={policy.requireResearchBeforeAuto}
+              onChange={(event) => updatePolicy({ ...policy, requireResearchBeforeAuto: event.target.checked })}
+            />
+            <span>自动投递前要求全网资料</span>
+          </label>
           <div className="row">
             <button className="warning" onClick={runNextDryRun}>执行下一条队列动作</button>
             <button className="secondary" disabled={policy.mode !== 'auto' || state?.runner.enabled} onClick={startQueueAutomation}>启动自动队列</button>

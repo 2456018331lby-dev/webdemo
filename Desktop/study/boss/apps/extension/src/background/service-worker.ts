@@ -7,6 +7,7 @@ import {
   enforceQueuePolicy,
   enqueueScoredJobs,
   evaluatePageSafety,
+  getResearchForJob,
   getNextActionableItem,
   markQueueItemAttempted,
   reconcileScoredQueue,
@@ -243,6 +244,30 @@ async function runNextApplicationAction(nowIso: string, source: 'manual' | 'auto
           action: 'queue.idle',
           message: '当前没有可执行的投递任务。',
           metadata: { source }
+        })
+      };
+    }
+
+    if (shouldPauseForMissingResearch(runnable.job, current.policy, current.research)) {
+      const attempt: ApplyAttemptResult = {
+        ok: false,
+        mode: current.policy.mode,
+        jobId: runnable.job.id,
+        pauseReason: 'missing-research',
+        message: `自动模式要求先保存公司/岗位全网资料：${runnable.job.company.name} / ${runnable.job.title}。`
+      };
+      return {
+        ...current,
+        queue: markQueueItemAttempted(queue, runnable.id, nowIso, current.policy, false, attempt.pauseReason),
+        runner: source === 'automation' ? { ...current.runner, lastTickAt: nowIso } : current.runner,
+        auditLog: appendAuditLog(current.auditLog, {
+          at: nowIso,
+          level: 'warning',
+          action: 'apply.paused',
+          platform: runnable.job.platform,
+          jobId: runnable.job.id,
+          message: attempt.message,
+          metadata: { source, pauseReason: attempt.pauseReason }
         })
       };
     }
@@ -497,6 +522,10 @@ function mergeJobs(existing: JobPosting[], incoming: JobPosting[]): JobPosting[]
   const map = new Map(existing.map((job) => [`${job.platform}:${job.id}`, job]));
   for (const job of incoming) map.set(`${job.platform}:${job.id}`, job);
   return Array.from(map.values()).slice(-500);
+}
+
+function shouldPauseForMissingResearch(job: JobPosting, policy: QueuePolicy, research: CompanyResearchRecord[]): boolean {
+  return policy.mode === 'auto' && policy.requireResearchBeforeAuto && getResearchForJob(job, research).length === 0;
 }
 
 function createLocalApplyAttempt(job: JobPosting, mode: ApplicationMode): ApplyAttemptResult {

@@ -93,6 +93,18 @@ button:disabled {
   flex: 1;
 }
 
+.checkbox-row {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.checkbox-row input {
+  flex: 0 0 auto;
+  width: auto;
+}
+
 .badge {
   display: inline-flex;
   border-radius: 999px;
