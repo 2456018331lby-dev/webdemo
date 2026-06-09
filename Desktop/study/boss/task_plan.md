@@ -24,7 +24,7 @@ Build a local-first Chrome Manifest V3 job application assistant project. It sho
 | 2. Project scaffolding | complete | Root npm workspace, shared package, extension package and Vite config created. |
 | 3. Shared domain implementation | complete | Schemas, scoring, company-first ranking, queue, audit, resume intent parser, multi-source research evidence parser/scorer and platform adapters added. |
 | 4. Extension shell | usable | Manifest, background service worker, content script, popup and side panel UI build into a loadable MV3 directory. |
-| 5. Platform adapters | in_progress | Boss adapter MVP in shared package; Lagou/Liepin/LinkedIn stubs added. |
+| 5. Platform adapters | in_progress | Boss adapter MVP plus conservative Lagou/Liepin/LinkedIn DOM extraction adapters added; live-site validation and application handlers remain. |
 | 6. Automation safety | in_progress | Dry-run/manual/auto modes, queue policy, default blacklist, audit logs, daily cap, minimum interval, active-page research capture and safety pause checks added; auto performs one guarded page click and completes only after a visible success signal. A Chrome alarms-backed runner can be explicitly started/stopped to process one eligible ranked item per safe interval. |
 | 7. Tests and verification | usable | `npm install`, `npm test`, `npm run typecheck`, `npm run build`, and `npm audit --audit-level=moderate` pass. |
 | 8. Documentation and handoff | in_progress | README added; deeper handoff docs still need background/message coverage notes after more automation work. |
@@ -37,8 +37,8 @@ Build a local-first Chrome Manifest V3 job application assistant project. It sho
 - User can open company/job web research searches and capture the active source page into local evidence for rescoring.
 - Multiple saved research sources for the same company/job are aggregated into one ranking signal with merged positive evidence and negative warning penalties.
 - Queue ordering is company-first: companies are ranked best-to-worst, then jobs inside each company are ranked best-to-worst.
-- Boss pages can be scanned into normalized job cards using resilient selectors and fallback text extraction.
-- Lagou/Liepin/LinkedIn adapters are wired as stubs with clear contracts and TODO boundaries.
+- Boss, Lagou, Liepin, and LinkedIn pages can be scanned into normalized job cards using resilient selectors and fallback text extraction.
+- Lagou/Liepin/LinkedIn application action handlers still pause safely until platform-specific confirmation flows are validated.
 - Automation has rate limits, daily cap, random-free deterministic scheduling policy for tests, pause on unknown/captcha/login/DOM mismatch, and audit logs.
 - Manual approval mode opens a job page and highlights the detected apply/contact button instead of clicking it.
 - Auto mode may click only after safety checks pass and must pause on captcha/login/platform warning/missing required fields/unknown DOM, confirmation dialogs, resume selection, or ambiguous post-click outcomes.

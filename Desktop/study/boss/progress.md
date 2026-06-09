@@ -35,6 +35,7 @@
 - Added explicit company-first ranking: queued jobs are grouped by company rank first, jobs are ranked inside each company second, and the side panel now displays those ranks.
 - Improved resume intent parsing: target roles, target cities, industries, skills, and years of experience can now be inferred from labeled resume text, and the side panel no longer seeds every resume with default target roles.
 - Queue reconciliation now re-scores and fills the queue when resume profiles, blacklist rules, or research evidence changes, so jobs scanned before profile setup are ranked without needing another page scan.
+- Enabled conservative DOM extraction adapters for Lagou, Liepin, and LinkedIn so those pages can produce normalized job cards for the same scoring and queue flow.
 
 ## Current Phase
 Phase 4/5/6/7: Extension shell, Boss adapter, automation safety, tests, and build verification are usable for MVP dry-run. Documentation and deeper platform/application flows remain in progress.
@@ -44,12 +45,12 @@ Phase 4/5/6/7: Extension shell, Boss adapter, automation safety, tests, and buil
 2. Add browser-side PDF/Word text extraction or a local parser service.
 3. Improve conflict handling and trust calibration when company research sources disagree.
 4. Expand post-click handling to platform-specific confirmation dialogs and resume/profile completion flows.
-5. Build DOM adapters and application action handlers for Lagou, Liepin, and LinkedIn.
+5. Add live-page regression checks and platform-specific application action handlers for Boss, Lagou, Liepin, and LinkedIn.
 
 ## Test Results
 | Test | Expected | Actual | Status |
 |---|---|---|---|
-| `npm test` | Shared and extension tests pass | 29 tests passed across both workspaces | passed |
+| `npm test` | Shared and extension tests pass | 32 tests passed across both workspaces | passed |
 | `npm run typecheck` | Root workspace typechecks | Shared and extension TypeScript passed | passed |
 | `npm run build` | Vite emits loadable MV3 extension in `apps/extension/dist` | Manifest, popup, sidepanel, service worker, content script emitted | passed |
 | `npm audit --audit-level=moderate` | No known moderate-or-higher vulnerabilities | 0 vulnerabilities | passed |
