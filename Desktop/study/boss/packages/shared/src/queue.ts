@@ -15,6 +15,8 @@ export interface EnqueueOptions {
   nowIso: string;
 }
 
+export interface ReconcileQueueOptions extends EnqueueOptions {}
+
 export function createQueueItem(job: JobPosting, score: JobScore, nowIso: string, policy: QueuePolicy): QueueItem {
   const needsApproval = policy.mode === 'manual-approval' || score.recommendation !== 'apply';
   const blacklisted = score.triggeredBlacklistRules.length > 0;
@@ -50,6 +52,22 @@ export function enqueueScoredJobs(
   }
 
   return { ...state, items: sortQueue(nextItems) };
+}
+
+export function reconcileScoredQueue(
+  state: QueueState,
+  scoredJobs: Array<{ job: JobPosting; score: JobScore }>,
+  options: ReconcileQueueOptions
+): QueueState {
+  const policy = { ...defaultQueuePolicy, ...options.policy };
+  const scoredByKey = new Map(scoredJobs.map((scored) => [getJobKey(scored.job), scored]));
+  const nextItems = state.items.map((item) => {
+    const scored = scoredByKey.get(getJobKey(item.job));
+    if (!scored) return item;
+    return reconcileQueueItem(item, scored.score, options.nowIso, policy);
+  });
+
+  return enqueueScoredJobs({ ...state, items: nextItems }, scoredJobs, options);
 }
 
 export function getNextRunnableItem(state: QueueState, policyInput: Partial<QueuePolicy>, nowIso: string): QueueItem | undefined {
@@ -120,4 +138,53 @@ export function rotateDay(state: QueueState, nowIso: string): QueueState {
 
 function sortQueue(items: QueueItem[]): QueueItem[] {
   return flattenRankedQueueItems(items);
+}
+
+function reconcileQueueItem(item: QueueItem, score: JobScore, nowIso: string, policy: QueuePolicy): QueueItem {
+  if (item.status === 'completed' || item.status === 'in-progress') {
+    return { ...item, score, updatedAt: nowIso };
+  }
+
+  if (score.triggeredBlacklistRules.length > 0) {
+    return {
+      ...item,
+      score,
+      status: 'skipped',
+      updatedAt: nowIso,
+      nextRunAt: undefined,
+      pauseReason: 'blacklisted'
+    };
+  }
+
+  if (score.recommendation !== 'apply' || policy.mode === 'manual-approval') {
+    return {
+      ...item,
+      score,
+      status: 'needs-approval',
+      updatedAt: nowIso,
+      nextRunAt: undefined,
+      pauseReason: 'manual-review-required'
+    };
+  }
+
+  if (item.status === 'paused' && item.pauseReason !== 'manual-review-required') {
+    return {
+      ...item,
+      score,
+      updatedAt: nowIso
+    };
+  }
+
+  return {
+    ...item,
+    score,
+    status: 'queued',
+    updatedAt: nowIso,
+    nextRunAt: item.nextRunAt ?? nowIso,
+    pauseReason: undefined
+  };
+}
+
+function getJobKey(job: JobPosting): string {
+  return `${job.platform}:${job.id}`;
 }

@@ -9,6 +9,7 @@ import {
   evaluatePageSafety,
   getNextActionableItem,
   markQueueItemAttempted,
+  reconcileScoredQueue,
   rotateDay,
   scoreJob
 } from '@job-assistant/shared';
@@ -46,16 +47,23 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
     }
 
     case 'SAVE_RESUME': {
-      const state = await updateState((current) => ({
-        ...current,
-        resume: message.resume,
-        auditLog: appendAuditLog(current.auditLog, {
-          at: new Date().toISOString(),
-          level: 'info',
-          action: 'resume.saved',
-          message: '简历画像已保存到本地 Chrome storage。'
-        })
-      }));
+      const nowIso = new Date().toISOString();
+      const state = await updateState((current) => {
+        const jobs = getKnownJobs(current);
+        const scoredJobs = scoreJobsForResume(jobs, message.resume, current.blacklist, current.research);
+        return {
+          ...current,
+          resume: message.resume,
+          jobs,
+          queue: reconcileScoredQueue(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy }),
+          auditLog: appendAuditLog(current.auditLog, {
+            at: nowIso,
+            level: 'info',
+            action: 'resume.saved',
+            message: `简历画像已保存，并按新画像重排 ${scoredJobs.length} 个已识别岗位。`
+          })
+        };
+      });
       return { ok: true, state };
     }
 
@@ -81,16 +89,25 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
     }
 
     case 'SET_BLACKLIST': {
-      const state = await updateState((current) => ({
-        ...current,
-        blacklist: message.blacklist,
-        auditLog: appendAuditLog(current.auditLog, {
-          at: new Date().toISOString(),
-          level: 'info',
-          action: 'blacklist.updated',
-          message: `黑名单规则已更新：${message.blacklist.length} 条。`
-        })
-      }));
+      const nowIso = new Date().toISOString();
+      const state = await updateState((current) => {
+        const jobs = getKnownJobs(current);
+        const scoredJobs = current.resume ? scoreJobsForResume(jobs, current.resume, message.blacklist, current.research) : [];
+        return {
+          ...current,
+          blacklist: message.blacklist,
+          jobs,
+          queue: current.resume
+            ? reconcileScoredQueue(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy })
+            : current.queue,
+          auditLog: appendAuditLog(current.auditLog, {
+            at: nowIso,
+            level: 'info',
+            action: 'blacklist.updated',
+            message: `黑名单规则已更新：${message.blacklist.length} 条，已重排 ${scoredJobs.length} 个岗位。`
+          })
+        };
+      });
       return { ok: true, state };
     }
 
@@ -431,10 +448,15 @@ async function saveResearchRecord(record: CompanyResearchRecord): Promise<Awaite
   const nowIso = new Date().toISOString();
   return updateState((current) => {
     const research = [record, ...current.research.filter((item) => item.id !== record.id)].slice(0, 300);
+    const jobs = getKnownJobs(current);
+    const scoredJobs = current.resume ? scoreJobsForResume(jobs, current.resume, current.blacklist, research) : [];
     return {
       ...current,
+      jobs,
       research,
-      queue: current.resume ? rescoreQueue(current.queue, current.resume, current.blacklist, research) : current.queue,
+      queue: current.resume
+        ? reconcileScoredQueue(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy })
+        : current.queue,
       auditLog: appendAuditLog(current.auditLog, {
         at: nowIso,
         level: record.warnings.length > 0 ? 'warning' : 'info',
@@ -458,28 +480,17 @@ function captureResearchPageText(): { url: string; title: string; text: string }
   };
 }
 
-function rescoreQueue(
-  queue: QueueState,
+function getKnownJobs(state: ExtensionState): JobPosting[] {
+  return mergeJobs(state.jobs, state.queue.items.map((item) => item.job));
+}
+
+function scoreJobsForResume(
+  jobs: JobPosting[],
   resume: ResumeProfile,
   blacklist: BlacklistRule[],
   research: CompanyResearchRecord[]
-): QueueState {
-  return {
-    ...queue,
-    items: queue.items.map((item) => {
-      const score = scoreJob(item.job, resume, { blacklist, research });
-      if (item.status === 'completed' || item.status === 'in-progress') {
-        return { ...item, score };
-      }
-      if (score.triggeredBlacklistRules.length > 0) {
-        return { ...item, score, status: 'skipped', pauseReason: 'blacklisted', nextRunAt: undefined };
-      }
-      if (score.recommendation !== 'apply') {
-        return { ...item, score, status: 'needs-approval', pauseReason: 'manual-review-required', nextRunAt: undefined };
-      }
-      return { ...item, score, status: 'queued', pauseReason: undefined, nextRunAt: item.nextRunAt ?? item.updatedAt };
-    })
-  };
+): Array<{ job: JobPosting; score: ReturnType<typeof scoreJob> }> {
+  return jobs.map((job) => ({ job, score: scoreJob(job, resume, { blacklist, research }) }));
 }
 
 function mergeJobs(existing: JobPosting[], incoming: JobPosting[]): JobPosting[] {

@@ -33,6 +33,7 @@ Build a local-first Chrome Manifest V3 job application assistant project. It sho
 - `npm install`, `npm test`, and `npm run build` work from the project root.
 - Extension builds into a loadable Chrome unpacked extension directory.
 - User can paste resume text, infer intent roles/cities/industries/skills, score jobs, view explanations, queue jobs, blacklist companies/keywords, and run dry-run applications.
+- Jobs scanned before or after profile setup are reconciled into the ranked queue when resume, blacklist, or research data changes.
 - User can open company/job web research searches and capture the active source page into local evidence for rescoring.
 - Multiple saved research sources for the same company/job are aggregated into one ranking signal with merged positive evidence and negative warning penalties.
 - Queue ordering is company-first: companies are ranked best-to-worst, then jobs inside each company are ranked best-to-worst.

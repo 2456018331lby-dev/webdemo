@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JobPosting, JobScore, QueueState } from '../src';
-import { enqueueScoredJobs, getNextActionableItem, getNextRunnableItem, markQueueItemAttempted, rankQueueItemsByCompany } from '../src';
+import { enqueueScoredJobs, getNextActionableItem, getNextRunnableItem, markQueueItemAttempted, rankQueueItemsByCompany, reconcileScoredQueue } from '../src';
 
 const job: JobPosting = {
   id: 'job-1',
@@ -138,5 +138,50 @@ describe('queue policy', () => {
     expect(ranked[0]?.items.map((item) => item.jobRankInCompany)).toEqual([1, 2]);
     expect(ranked[1]?.companyName).toBe('Beta');
     expect(ranked[1]?.companyRank).toBe(2);
+  });
+
+  it('reconciles newly scored jobs into an empty queue after resume save', () => {
+    const state = reconcileScoredQueue(emptyState, [{ job, score }], {
+      nowIso: '2026-06-08T01:00:00.000Z',
+      policy: { mode: 'dry-run' }
+    });
+
+    expect(state.items).toHaveLength(1);
+    expect(state.items[0]?.job.id).toBe('job-1');
+    expect(state.items[0]?.status).toBe('queued');
+  });
+
+  it('reconciles existing items when blacklist rules change', () => {
+    const queued = enqueueScoredJobs(emptyState, [{ job, score }], {
+      nowIso: '2026-06-08T01:00:00.000Z',
+      policy: { mode: 'dry-run' }
+    });
+    const blacklistedScore: JobScore = {
+      ...score,
+      triggeredBlacklistRules: [{ id: 'b1', kind: 'company', value: 'Example', enabled: true }]
+    };
+
+    const reconciled = reconcileScoredQueue(queued, [{ job, score: blacklistedScore }], {
+      nowIso: '2026-06-08T01:10:00.000Z',
+      policy: { mode: 'dry-run' }
+    });
+
+    expect(reconciled.items[0]?.status).toBe('skipped');
+    expect(reconciled.items[0]?.pauseReason).toBe('blacklisted');
+  });
+
+  it('keeps apply recommendations in needs-approval status in manual mode after rescoring', () => {
+    const queued = enqueueScoredJobs(emptyState, [{ job, score }], {
+      nowIso: '2026-06-08T01:00:00.000Z',
+      policy: { mode: 'dry-run' }
+    });
+
+    const reconciled = reconcileScoredQueue(queued, [{ job, score }], {
+      nowIso: '2026-06-08T01:10:00.000Z',
+      policy: { mode: 'manual-approval' }
+    });
+
+    expect(reconciled.items[0]?.status).toBe('needs-approval');
+    expect(reconciled.items[0]?.pauseReason).toBe('manual-review-required');
   });
 });
