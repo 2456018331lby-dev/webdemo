@@ -57,7 +57,7 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
           ...current,
           resume: message.resume,
           jobs,
-          queue: reconcileScoredQueue(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy }),
+          queue: reconcileScoredQueue(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy, research: current.research }),
           auditLog: appendAuditLog(current.auditLog, {
             at: nowIso,
             level: 'info',
@@ -70,16 +70,25 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
     }
 
     case 'SET_POLICY': {
-      const state = await updateState((current) => ({
-        ...current,
-        policy: message.policy,
-        auditLog: appendAuditLog(current.auditLog, {
-          at: new Date().toISOString(),
-          level: 'info',
-          action: 'policy.updated',
-          message: `投递策略已更新为 ${message.policy.mode}。`
-        })
-      }));
+      const nowIso = new Date().toISOString();
+      const state = await updateState((current) => {
+        const jobs = getKnownJobs(current);
+        const scoredJobs = current.resume ? scoreJobsForResume(jobs, current.resume, current.blacklist, current.research) : [];
+        return {
+          ...current,
+          policy: message.policy,
+          jobs,
+          queue: current.resume
+            ? reconcileScoredQueue(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: message.policy, research: current.research })
+            : current.queue,
+          auditLog: appendAuditLog(current.auditLog, {
+            at: nowIso,
+            level: 'info',
+            action: 'policy.updated',
+            message: `投递策略已更新为 ${message.policy.mode}。`
+          })
+        };
+      });
       if (message.policy.mode !== 'auto' && state.runner.enabled) {
         const stoppedState = await stopQueueAutomation('投递策略已切换为非自动模式，自动队列已停止。', 'warning');
         return { ok: true, state: stoppedState };
@@ -100,7 +109,7 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
           blacklist: message.blacklist,
           jobs,
           queue: current.resume
-            ? reconcileScoredQueue(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy })
+            ? reconcileScoredQueue(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy, research: current.research })
             : current.queue,
           auditLog: appendAuditLog(current.auditLog, {
             at: nowIso,
@@ -490,7 +499,7 @@ async function saveResearchRecord(record: CompanyResearchRecord): Promise<Awaite
       jobs,
       research,
       queue: current.resume
-        ? reconcileScoredQueue(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy })
+        ? reconcileScoredQueue(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy, research })
         : current.queue,
       auditLog: appendAuditLog(current.auditLog, {
         at: nowIso,

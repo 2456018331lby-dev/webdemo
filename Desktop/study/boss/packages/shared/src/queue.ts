@@ -1,7 +1,8 @@
-import type { JobPosting, JobScore, QueueItem, QueuePolicy } from './types';
+import type { CompanyResearchRecord, JobPosting, JobScore, QueueItem, QueuePolicy } from './types';
 import { addMinutes, stableId } from './text';
 import { defaultQueuePolicy } from './types';
 import { flattenRankedQueueItems } from './ranking';
+import { getResearchForJob } from './research';
 
 export interface QueueState {
   items: QueueItem[];
@@ -15,7 +16,9 @@ export interface EnqueueOptions {
   nowIso: string;
 }
 
-export interface ReconcileQueueOptions extends EnqueueOptions {}
+export interface ReconcileQueueOptions extends EnqueueOptions {
+  research?: CompanyResearchRecord[];
+}
 
 export function createQueueItem(job: JobPosting, score: JobScore, nowIso: string, policy: QueuePolicy): QueueItem {
   const needsApproval = policy.mode === 'manual-approval' || score.recommendation !== 'apply';
@@ -64,7 +67,7 @@ export function reconcileScoredQueue(
   const nextItems = state.items.map((item) => {
     const scored = scoredByKey.get(getJobKey(item.job));
     if (!scored) return item;
-    return reconcileQueueItem(item, scored.score, options.nowIso, policy);
+    return reconcileQueueItem(item, scored.score, options.nowIso, policy, options.research ?? []);
   });
 
   return enqueueScoredJobs({ ...state, items: nextItems }, scoredJobs, options);
@@ -140,7 +143,7 @@ function sortQueue(items: QueueItem[]): QueueItem[] {
   return flattenRankedQueueItems(items);
 }
 
-function reconcileQueueItem(item: QueueItem, score: JobScore, nowIso: string, policy: QueuePolicy): QueueItem {
+function reconcileQueueItem(item: QueueItem, score: JobScore, nowIso: string, policy: QueuePolicy, research: CompanyResearchRecord[]): QueueItem {
   if (item.status === 'completed' || item.status === 'in-progress') {
     return { ...item, score, updatedAt: nowIso };
   }
@@ -167,7 +170,7 @@ function reconcileQueueItem(item: QueueItem, score: JobScore, nowIso: string, po
     };
   }
 
-  if (item.status === 'paused' && item.pauseReason !== 'manual-review-required') {
+  if (item.status === 'paused' && shouldKeepPaused(item, policy, research)) {
     return {
       ...item,
       score,
@@ -175,14 +178,22 @@ function reconcileQueueItem(item: QueueItem, score: JobScore, nowIso: string, po
     };
   }
 
+  const resumedFromMissingResearch = item.status === 'paused' && item.pauseReason === 'missing-research';
+
   return {
     ...item,
     score,
     status: 'queued',
     updatedAt: nowIso,
-    nextRunAt: item.nextRunAt ?? nowIso,
+    nextRunAt: resumedFromMissingResearch ? nowIso : item.nextRunAt ?? nowIso,
     pauseReason: undefined
   };
+}
+
+function shouldKeepPaused(item: QueueItem, policy: QueuePolicy, research: CompanyResearchRecord[]): boolean {
+  if (item.pauseReason === 'manual-review-required') return false;
+  if (item.pauseReason !== 'missing-research') return true;
+  return policy.mode === 'auto' && policy.requireResearchBeforeAuto && getResearchForJob(item.job, research).length === 0;
 }
 
 function getJobKey(job: JobPosting): string {
