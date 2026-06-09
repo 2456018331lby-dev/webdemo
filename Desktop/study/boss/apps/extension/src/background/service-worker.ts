@@ -456,17 +456,8 @@ async function startQueueAutomation(): Promise<ExtensionState> {
   });
 
   if (state.runner.enabled && state.policy.requireResearchBeforeAuto) {
-    const preflight = await openQueueResearchSearches(undefined, 'auto-queue');
+    const preflight = await openQueueResearchSearches(undefined, 'auto-queue', true);
     state = preflight.state;
-    if (preflight.targetCount > 0) {
-      state = await updateState((current) => ({
-        ...current,
-        runner: {
-          ...current.runner,
-          message: `自动队列已启动，已先为 ${preflight.targetCount} 个高优先级岗位打开 ${preflight.queryCount} 个资料搜索。`
-        }
-      }));
-    }
   }
 
   if (state.runner.enabled) await scheduleQueueAutomation(state.policy, state.queue);
@@ -675,7 +666,8 @@ async function saveResearchRecord(record: CompanyResearchRecord): Promise<Awaite
 
 async function openQueueResearchSearches(
   limitInput?: number,
-  source: PendingResearchTarget['source'] = 'manual-search'
+  source: PendingResearchTarget['source'] = 'manual-search',
+  updateRunnerMessage = false
 ): Promise<{ state: ExtensionState; targetCount: number; queryCount: number }> {
   const nowIso = new Date().toISOString();
   const limit = normalizeQueueResearchLimit(limitInput);
@@ -719,6 +711,12 @@ async function openQueueResearchSearches(
 
     return {
       ...current,
+      runner: updateRunnerMessage
+        ? {
+          ...current.runner,
+          message: `自动队列已启动，已先为 ${plannedTargets.length} 个高优先级岗位打开 ${queriesToOpen.length} 个资料搜索。`
+        }
+        : current.runner,
       pendingResearchTargets,
       auditLog: appendAuditLog(current.auditLog, {
         at: nowIso,

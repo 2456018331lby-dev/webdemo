@@ -83,6 +83,7 @@ try {
     const autoResearch = await verifyAutoResearchCapture(client, port, resume, nowIso);
     const automationPreflight = await verifyStartAutomationPreflight(client, resume, nowIso);
     const queueAutoApply = await verifyQueueAutoApply(client, port, resume, nowIso);
+    const alreadyApplied = await verifyAlreadyAppliedCompletion(client, port, resume, nowIso);
     const requiredFieldPause = await verifyQueueRequiredFieldPause(client, port, resume, nowIso);
 
     await clearExtensionStorage(client);
@@ -127,6 +128,7 @@ try {
       queueResearchPreflightSearches: queueResearchPreflight.openedSearches,
       queueExplanationRendered: queueExplanation.rendered,
       queueAutoApplyCompleted: queueAutoApply.completedJobId,
+      alreadyAppliedCompleted: alreadyApplied.completedJobId,
       requiredFieldPauseReason: requiredFieldPause.pauseReason,
       rankedJobIds: queuedIds,
       rescannedTopJobId: rescannedItems[0]?.job?.id,
@@ -175,6 +177,17 @@ async function openFakeBossQueueApplyPage(port) {
     makeFakeBossQueueApplyHtml(),
     '投递简历',
     'Fake BOSS queue apply page did not render expected apply target.',
+    { urlPattern: 'https://www.zhipin.com/*', requestUrlIncludes: 'zhipin.com' }
+  );
+}
+
+async function openFakeBossAlreadyAppliedPage(port) {
+  return openInterceptedPage(
+    port,
+    'https://www.zhipin.com/job_detail/edge-already-applied.html',
+    makeFakeBossAlreadyAppliedHtml(),
+    '已投递',
+    'Fake BOSS already-applied page did not render expected status.',
     { urlPattern: 'https://www.zhipin.com/*', requestUrlIncludes: 'zhipin.com' }
   );
 }
@@ -305,6 +318,26 @@ function makeFakeBossQueueApplyHtml() {
       <h1>队列自动投递前端工程师</h1>
       <section class="job-detail-op">
         <button id="apply" type="button" onclick="document.getElementById('result').textContent = '投递成功'; this.textContent = '已投递';">投递简历</button>
+      </section>
+      <p>React TypeScript SaaS 平台研发，五险一金，年终奖，周末双休，带薪年假。</p>
+      <p id="result" aria-live="polite"></p>
+    </article>
+  </body>
+</html>`;
+}
+
+function makeFakeBossAlreadyAppliedHtml() {
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <title>BOSS already applied</title>
+  </head>
+  <body>
+    <article class="job-detail">
+      <h1>已投递前端工程师</h1>
+      <section class="job-detail-op">
+        <button id="apply" type="button" disabled>已投递</button>
       </section>
       <p>React TypeScript SaaS 平台研发，五险一金，年终奖，周末双休，带薪年假。</p>
       <p id="result" aria-live="polite"></p>
@@ -579,6 +612,42 @@ async function verifyQueueAutoApply(client, port, resume, nowIso) {
   }
 }
 
+async function verifyAlreadyAppliedCompletion(client, port, resume, nowIso) {
+  await clearExtensionStorage(client);
+  await sendRuntimeMessage(client, { type: 'SAVE_RESUME', resume });
+  await sendRuntimeMessage(client, {
+    type: 'SET_POLICY',
+    policy: {
+      dailyLimit: 20,
+      minMinutesBetweenActions: 3,
+      maxQueueSize: 100,
+      mode: 'auto',
+      requireResearchBeforeAuto: false
+    }
+  });
+
+  const job = makeAlreadyAppliedJob(nowIso);
+  const queued = await sendRuntimeMessage(client, { type: 'QUEUE_JOBS', jobs: [job] });
+  assert(queued.state?.queue?.items?.[0]?.job?.id === job.id, `Expected already-applied job to be first, got ${queued.state?.queue?.items?.[0]?.job?.id}`);
+
+  const fakePage = await openFakeBossAlreadyAppliedPage(port);
+  try {
+    await activateTarget(port, fakePage.target.id);
+    const response = await sendRuntimeMessage(client, { type: 'RUN_NEXT_APPLICATION' });
+    const item = response.state?.queue?.items?.find((queueItem) => queueItem.job.id === job.id);
+    assert(item?.status === 'completed', `Expected already-applied queue item to complete, got ${item?.status}`);
+    assert(response.state?.auditLog?.[0]?.action === 'apply.recorded', `Expected apply.recorded audit log, got ${response.state?.auditLog?.[0]?.action}`);
+    assert(response.state?.auditLog?.[0]?.message?.includes('已投递'), `Expected already-applied message, got ${response.state?.auditLog?.[0]?.message}`);
+
+    const resultText = await evaluate(fakePage.client, 'document.getElementById("result")?.textContent ?? ""');
+    assert(resultText === '', `Expected already-applied page not to click anything, got ${resultText}`);
+    return { completedJobId: item.job.id };
+  } finally {
+    fakePage.client.close();
+    await closeTarget(port, fakePage.target.id);
+  }
+}
+
 async function verifyQueueRequiredFieldPause(client, port, resume, nowIso) {
   await clearExtensionStorage(client);
   await sendRuntimeMessage(client, { type: 'SAVE_RESUME', resume });
@@ -595,7 +664,10 @@ async function verifyQueueRequiredFieldPause(client, port, resume, nowIso) {
 
   const job = makeRequiredFieldJob(nowIso);
   const queued = await sendRuntimeMessage(client, { type: 'QUEUE_JOBS', jobs: [job] });
-  assert(queued.state?.queue?.items?.[0]?.job?.id === job.id, `Expected required-field job to be first, got ${queued.state?.queue?.items?.[0]?.job?.id}`);
+  assert(
+    queued.state?.queue?.items?.[0]?.job?.id === job.id,
+    `Expected required-field job to be first, got ${queued.state?.queue?.items?.[0]?.job?.id}; queue=${JSON.stringify(queued.state?.queue)}`
+  );
 
   const fakePage = await openFakeBossRequiredFieldPage(port);
   try {
@@ -951,6 +1023,22 @@ function makeQueueAutoApplyJob(nowIso) {
     requirements: ['React', 'TypeScript'],
     tags: ['React', 'TypeScript', '五险一金', '年终奖', '双休', '带薪年假'],
     url: 'https://www.zhipin.com/job_detail/edge-queue-auto-apply.html',
+    scrapedAt: nowIso
+  };
+}
+
+function makeAlreadyAppliedJob(nowIso) {
+  return {
+    id: 'edge-already-applied',
+    platform: 'boss',
+    title: '已投递前端工程师',
+    company: { name: '已投递科技', industry: 'SaaS', location: '上海', tags: ['五险一金', '双休'] },
+    location: '上海',
+    salary: { min: 37_000, max: 47_000, currency: 'CNY', period: 'month', raw: '37-47K' },
+    description: 'React TypeScript SaaS 平台研发，五险一金，年终奖，周末双休，带薪年假。',
+    requirements: ['React', 'TypeScript'],
+    tags: ['React', 'TypeScript', '五险一金', '年终奖', '双休', '带薪年假'],
+    url: 'https://www.zhipin.com/job_detail/edge-already-applied.html',
     scrapedAt: nowIso
   };
 }

@@ -50,6 +50,16 @@ async function prepareApplicationOnPage(job: JobPosting, mode: Exclude<Applicati
     };
   }
 
+  const existingStatus = findExistingApplicationStatus();
+  if (existingStatus) {
+    return {
+      ok: true,
+      mode,
+      jobId: job.id,
+      message: `页面已显示“${existingStatus}”，该岗位视为已投递/已沟通。`
+    };
+  }
+
   const applyTarget = findApplyTarget();
   if (!applyTarget) {
     return {
@@ -103,6 +113,21 @@ function findApplyTarget(): HTMLElement | undefined {
     });
 
   return candidates.sort((left, right) => scoreApplyTarget(right) - scoreApplyTarget(left))[0];
+}
+
+function findExistingApplicationStatus(): string | undefined {
+  const statusKeywords = ['已投递', '已申请', '已沟通', '简历已发送'];
+  const candidates = Array.from(document.querySelectorAll<HTMLElement>(
+    'button, a, [role="button"], .btn, .op-btn, .job-detail-op, .apply-status, .delivery-status, .status'
+  ));
+
+  for (const element of candidates) {
+    const text = visibleText(element);
+    const keyword = statusKeywords.find((candidate) => text.includes(candidate));
+    if (keyword) return keyword;
+  }
+
+  return undefined;
 }
 
 function classifyPostClickResult(job: JobPosting, mode: Exclude<ApplicationMode, 'dry-run'>, targetText: string, attempt: ApplyAttemptResult): ApplyAttemptResult {
