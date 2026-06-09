@@ -78,6 +78,7 @@ try {
     }
 
     const autoResearch = await verifyAutoResearchCapture(client, port, resume, nowIso);
+    const queueAutoApply = await verifyQueueAutoApply(client, port, resume, nowIso);
 
     await clearExtensionStorage(client);
     await sendRuntimeMessage(client, { type: 'SAVE_RESUME', resume });
@@ -111,6 +112,7 @@ try {
       scannedJobQueued: true,
       autoApplyClicked: true,
       autoResearchCaptured: autoResearch.recordCount,
+      queueAutoApplyCompleted: queueAutoApply.completedJobId,
       rankedJobIds: queuedIds,
       rescannedTopJobId: rescannedItems[0]?.job?.id,
       highSalaryScore: queuedItems[0].score.score,
@@ -147,6 +149,17 @@ async function openFakeBossApplyPage(port) {
     makeFakeBossApplyHtml(),
     '立即沟通',
     'Fake BOSS apply page did not render expected apply target.',
+    { urlPattern: 'https://www.zhipin.com/*', requestUrlIncludes: 'zhipin.com' }
+  );
+}
+
+async function openFakeBossQueueApplyPage(port) {
+  return openInterceptedPage(
+    port,
+    'https://www.zhipin.com/job_detail/edge-queue-auto-apply.html',
+    makeFakeBossQueueApplyHtml(),
+    '投递简历',
+    'Fake BOSS queue apply page did not render expected apply target.',
     { urlPattern: 'https://www.zhipin.com/*', requestUrlIncludes: 'zhipin.com' }
   );
 }
@@ -254,6 +267,26 @@ function makeFakeBossApplyHtml() {
 </html>`;
 }
 
+function makeFakeBossQueueApplyHtml() {
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <title>BOSS queue auto apply</title>
+  </head>
+  <body>
+    <article class="job-detail">
+      <h1>队列自动投递前端工程师</h1>
+      <section class="job-detail-op">
+        <button id="apply" type="button" onclick="document.getElementById('result').textContent = '投递成功'; this.textContent = '已投递';">投递简历</button>
+      </section>
+      <p>React TypeScript SaaS 平台研发，五险一金，年终奖，周末双休，带薪年假。</p>
+      <p id="result" aria-live="polite"></p>
+    </article>
+  </body>
+</html>`;
+}
+
 function makeFakeBingSearchHtml() {
   return `<!doctype html>
 <html lang="zh-CN">
@@ -319,6 +352,42 @@ async function verifyAutoResearchCapture(client, port, resume, nowIso) {
   } finally {
     fakeBingPage.client.close();
     await closeTarget(port, fakeBingPage.target.id);
+  }
+}
+
+async function verifyQueueAutoApply(client, port, resume, nowIso) {
+  await clearExtensionStorage(client);
+  await sendRuntimeMessage(client, { type: 'SAVE_RESUME', resume });
+  await sendRuntimeMessage(client, {
+    type: 'SET_POLICY',
+    policy: {
+      dailyLimit: 20,
+      minMinutesBetweenActions: 3,
+      maxQueueSize: 100,
+      mode: 'auto',
+      requireResearchBeforeAuto: false
+    }
+  });
+
+  const job = makeQueueAutoApplyJob(nowIso);
+  const queued = await sendRuntimeMessage(client, { type: 'QUEUE_JOBS', jobs: [job] });
+  assert(queued.state?.queue?.items?.[0]?.job?.id === job.id, `Expected queue auto apply job to be first, got ${queued.state?.queue?.items?.[0]?.job?.id}`);
+
+  const fakeApplyPage = await openFakeBossQueueApplyPage(port);
+  try {
+    await activateTarget(port, fakeApplyPage.target.id);
+    const response = await sendRuntimeMessage(client, { type: 'RUN_NEXT_APPLICATION' });
+    const item = response.state?.queue?.items?.find((queueItem) => queueItem.job.id === job.id);
+    assert(item?.status === 'completed', `Expected background auto queue item to complete, got ${item?.status}`);
+    assert(response.state?.auditLog?.[0]?.action === 'apply.recorded', `Expected apply.recorded audit log, got ${response.state?.auditLog?.[0]?.action}`);
+    assert(response.state?.auditLog?.[0]?.message?.includes('成功信号'), `Expected queue auto apply success signal, got ${response.state?.auditLog?.[0]?.message}`);
+
+    const resultText = await evaluate(fakeApplyPage.client, 'document.getElementById("result")?.textContent ?? ""');
+    assert(resultText.includes('投递成功'), `Expected background auto queue click to update page, got ${resultText}`);
+    return { completedJobId: item.job.id };
+  } finally {
+    fakeApplyPage.client.close();
+    await closeTarget(port, fakeApplyPage.target.id);
   }
 }
 
@@ -451,8 +520,18 @@ function launchEdge(edgePath, userDataDir, port) {
 }
 
 async function openExtensionSidePanel(port, userDataDir) {
+  let lastError;
+
   for (let attempt = 0; attempt < 80; attempt += 1) {
-    const targets = await fetchJson(`http://127.0.0.1:${port}/json/list`);
+    let targets;
+    try {
+      targets = await fetchJson(`http://127.0.0.1:${port}/json/list`);
+    } catch (error) {
+      lastError = error;
+      await sleep(250);
+      continue;
+    }
+
     const existingTargets = targets.filter((target) => target.url?.includes('/sidepanel.html') && target.webSocketDebuggerUrl);
     for (const target of existingTargets) {
       if (await targetContainsMarker(port, target)) return target;
@@ -461,7 +540,13 @@ async function openExtensionSidePanel(port, userDataDir) {
 
     for (const id of getCandidateExtensionIds(targets, userDataDir)) {
       const url = `chrome-extension://${id}/sidepanel.html`;
-      const target = await fetchJson(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' });
+      let target;
+      try {
+        target = await fetchJson(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' });
+      } catch (error) {
+        lastError = error;
+        continue;
+      }
       if (!target.webSocketDebuggerUrl) continue;
 
       if (await targetContainsMarker(port, target)) return target;
@@ -470,7 +555,7 @@ async function openExtensionSidePanel(port, userDataDir) {
     await sleep(250);
   }
 
-  throw new Error('Could not discover loaded extension side panel in Edge.');
+  throw new Error(`Could not discover loaded extension side panel in Edge.${lastError ? ` Last DevTools error: ${lastError instanceof Error ? lastError.message : String(lastError)}` : ''}`);
 }
 
 async function targetContainsMarker(port, target) {
@@ -629,6 +714,22 @@ function makeAutoResearchJob(nowIso) {
   };
 }
 
+function makeQueueAutoApplyJob(nowIso) {
+  return {
+    id: 'edge-queue-auto-apply',
+    platform: 'boss',
+    title: '队列自动投递前端工程师',
+    company: { name: '队列自动科技', industry: 'SaaS', location: '上海', tags: ['五险一金', '双休'] },
+    location: '上海',
+    salary: { min: 38_000, max: 48_000, currency: 'CNY', period: 'month', raw: '38-48K' },
+    description: 'React TypeScript SaaS 平台研发，五险一金，年终奖，周末双休，带薪年假。',
+    requirements: ['React', 'TypeScript'],
+    tags: ['React', 'TypeScript', '五险一金', '年终奖', '双休', '带薪年假'],
+    url: 'https://www.zhipin.com/job_detail/edge-queue-auto-apply.html',
+    scrapedAt: nowIso
+  };
+}
+
 async function connectCdp(webSocketDebuggerUrl) {
   assert(typeof WebSocket === 'function', 'This smoke test requires Node.js with global WebSocket support. Use Node 22+ or current Node 24.');
   const socket = new WebSocket(webSocketDebuggerUrl);
@@ -639,8 +740,9 @@ async function connectCdp(webSocketDebuggerUrl) {
   socket.addEventListener('message', (event) => {
     const data = JSON.parse(event.data);
     if (data.id && pending.has(data.id)) {
-      const { resolve, reject } = pending.get(data.id);
+      const { resolve, reject, timeout } = pending.get(data.id);
       pending.delete(data.id);
+      clearTimeout(timeout);
       if (data.error) reject(new Error(`${data.error.message}: ${data.error.data ?? ''}`));
       else resolve(data);
       return;
@@ -668,12 +770,25 @@ async function connectCdp(webSocketDebuggerUrl) {
     }, { once: true });
   });
 
+  socket.addEventListener('close', () => {
+    rejectPending(new Error('Edge DevTools target closed before responding.'));
+  });
+  socket.addEventListener('error', (event) => {
+    rejectPending(event.error ?? new Error('Edge DevTools WebSocket error.'));
+  });
+
   return {
-    send(method, params = {}) {
+    send(method, params = {}, sessionId = undefined, timeoutMs = 8000) {
       const id = nextId;
       nextId += 1;
-      socket.send(JSON.stringify({ id, method, params }));
-      return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+      socket.send(JSON.stringify({ id, method, params, sessionId }));
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error(`Timed out waiting for CDP command ${method}.`));
+        }, timeoutMs);
+        pending.set(id, { resolve, reject, timeout });
+      });
     },
     waitForEvent(method, predicate = () => true, timeoutMs = 5000) {
       return new Promise((resolve, reject) => {
@@ -693,14 +808,22 @@ async function connectCdp(webSocketDebuggerUrl) {
       socket.close();
     }
   };
+
+  function rejectPending(error) {
+    for (const { reject, timeout } of pending.values()) {
+      clearTimeout(timeout);
+      reject(error);
+    }
+    pending.clear();
+  }
 }
 
-async function evaluate(client, expression) {
+async function evaluate(client, expression, sessionId = undefined) {
   const result = await client.send('Runtime.evaluate', {
     expression,
     awaitPromise: true,
     returnByValue: true
-  });
+  }, sessionId);
   if (result.result.exceptionDetails) {
     throw new Error(result.result.exceptionDetails.text ?? 'Runtime.evaluate failed');
   }
@@ -744,7 +867,10 @@ async function activateTarget(port, targetId) {
 }
 
 async function fetchJson(url, options) {
-  const response = await fetch(url, options);
+  const response = await fetch(url, {
+    ...options,
+    signal: AbortSignal.timeout(8000)
+  });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}: ${url}`);
   return response.json();
 }

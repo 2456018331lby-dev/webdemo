@@ -539,7 +539,7 @@ async function prepareApplicationInTab(job: JobPosting, mode: Exclude<Applicatio
     };
   }
 
-  const tab = await chrome.tabs.create({ url: job.url, active: true });
+  const tab = await getApplicationTab(job.url);
   if (!tab.id) {
     return {
       ok: false,
@@ -562,6 +562,25 @@ async function prepareApplicationInTab(job: JobPosting, mode: Exclude<Applicatio
       pauseReason: 'unknown-dom',
       message: `无法连接岗位页面投递脚本：${error instanceof Error ? error.message : String(error)}`
     };
+  }
+}
+
+async function getApplicationTab(jobUrl: string): Promise<chrome.tabs.Tab> {
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (activeTab?.id && urlsMatch(activeTab.url, jobUrl)) return activeTab;
+  return chrome.tabs.create({ url: jobUrl, active: true });
+}
+
+function urlsMatch(left: string | undefined, right: string): boolean {
+  if (!left) return false;
+  try {
+    const leftUrl = new URL(left);
+    const rightUrl = new URL(right);
+    leftUrl.hash = '';
+    rightUrl.hash = '';
+    return leftUrl.href === rightUrl.href;
+  } catch {
+    return left === right;
   }
 }
 
