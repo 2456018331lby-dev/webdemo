@@ -1,5 +1,31 @@
 # Progress Log
 
+## 2026-06-09 (本机备份恢复多状态校验)
+
+### 优化目标
+- 把本机备份恢复从单一“设备维护状态”校验扩展到更多已知 `localStorage` 状态
+- 防止坏备份把偏好、收藏、保存视图、通知收件箱或推送同步快照写回本机
+- 保持设置页恢复 UI 不变，只让恢复计划的 `restore / overwrite / invalid` 判断更可信
+
+### 代码变更
+- `local-app-backup.ts` 按 storage key 分派到各模块 parser/serializer，恢复前归一化本机偏好、设备收藏、设备筛选视图、活动日志视图、通知收件箱、通知筛选视图、推送同步快照和设备维护状态
+- `user-preferences.ts` 新增严格的 `normalizeUserPreferencesState()`，备份恢复要求 schemaVersion 为 1，页面读取仍保留原有默认兜底
+- `notification-inbox.ts` 新增 `normalizeNotificationInboxPayload()`，用于区分可恢复的收件箱 payload 和应跳过的坏备份
+- 无效已知状态会在恢复计划里标记为 `invalid`，并保留当前本机状态不被覆盖
+
+### 测试
+- `local-app-backup.test.ts` 新增有效状态归一化恢复测试，覆盖偏好、收藏、保存视图、通知收件箱和推送同步快照
+- `local-app-backup.test.ts` 新增坏状态跳过测试，确认无效备份不会覆盖当前 storage
+
+### 验证
+- `npm test -- --run apps/web/src/lib/local-app-backup.test.ts apps/web/src/lib/device-list.test.ts apps/web/src/lib/activity-logs.test.ts apps/web/src/lib/notification-inbox.test.ts apps/web/src/lib/push-notifications.test.ts apps/web/src/lib/user-preferences.test.ts`：6 files / 33 tests 通过
+- `npm run lint`：通过
+- `npm test -- --run --maxWorkers=1`：26 files / 124 tests 通过
+- `npm run build`：通过
+- 验证后已删除 `apps/web/.next/`；未发现 `.next`、`test-results`、`playwright-report`、`coverage`、`blob-report`、`output`、`.playwright-mcp` 或 `.omx`
+
+---
+
 ## 2026-06-09 (清理跟进与忽略规则收敛)
 
 ### 清理目标

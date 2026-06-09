@@ -1,15 +1,34 @@
-import { ACTIVITY_LOG_VIEW_STORAGE_KEY } from "./activity-logs";
-import { DEVICE_FAVORITES_STORAGE_KEY, DEVICE_FILTER_VIEW_STORAGE_KEY } from "./device-list";
+import { ACTIVITY_LOG_VIEW_STORAGE_KEY, parseActivityLogView, serializeActivityLogView } from "./activity-logs";
+import {
+  DEVICE_FAVORITES_STORAGE_KEY,
+  DEVICE_FILTER_VIEW_STORAGE_KEY,
+  parseDeviceFilterView,
+  serializeDeviceFilterView,
+  serializeFavoriteIds
+} from "./device-list";
 import { makeExportFilename, serializeJson } from "./export-data";
-import { NOTIFICATION_INBOX_STORAGE_KEY, NOTIFICATION_INBOX_VIEW_STORAGE_KEY } from "./notification-inbox";
+import {
+  NOTIFICATION_INBOX_STORAGE_KEY,
+  NOTIFICATION_INBOX_VIEW_STORAGE_KEY,
+  normalizeNotificationInboxPayload,
+  parseNotificationInboxView,
+  serializeNotificationInbox,
+  serializeNotificationInboxView
+} from "./notification-inbox";
 import {
   PUSH_SUBSCRIPTION_STORAGE_KEY,
   PUSH_SUBSCRIPTION_SYNC_STORAGE_KEY,
   getPushEndpointFingerprint,
-  parsePushSubscriptionRecord
+  parsePushSubscriptionRecord,
+  parsePushSubscriptionSyncRecord,
+  serializePushSubscriptionSyncRecord
 } from "./push-notifications";
 import { SETTINGS_DEVICES_STORAGE_KEY, normalizeSettingsDevicesState } from "./settings-devices";
-import { USER_PREFERENCES_STORAGE_KEY } from "./user-preferences";
+import {
+  USER_PREFERENCES_STORAGE_KEY,
+  normalizeUserPreferencesState,
+  serializeUserPreferences
+} from "./user-preferences";
 
 export const LOCAL_APP_BACKUP_SCHEMA_VERSION = 1;
 export const LOCAL_APP_BACKUP_SCOPE = "smart-home-local-state";
@@ -328,9 +347,43 @@ function stringifyRestorableValue(key: string, value: unknown): string | null {
     return null;
   }
 
+  if (key === USER_PREFERENCES_STORAGE_KEY) {
+    const preferences = normalizeUserPreferencesState(value);
+    return preferences ? serializeUserPreferences(preferences) : null;
+  }
+
   if (key === SETTINGS_DEVICES_STORAGE_KEY) {
     const normalizedState = normalizeSettingsDevicesState(value);
     return normalizedState ? JSON.stringify(normalizedState) : null;
+  }
+
+  if (key === DEVICE_FAVORITES_STORAGE_KEY) {
+    return stringifyFavoriteIds(value);
+  }
+
+  if (key === DEVICE_FILTER_VIEW_STORAGE_KEY) {
+    return stringifyParsedStorageState(value, parseDeviceFilterView, serializeDeviceFilterView);
+  }
+
+  if (key === ACTIVITY_LOG_VIEW_STORAGE_KEY) {
+    return stringifyParsedStorageState(value, parseActivityLogView, serializeActivityLogView);
+  }
+
+  if (key === NOTIFICATION_INBOX_STORAGE_KEY) {
+    const payload = normalizeNotificationInboxPayload(value);
+    return payload ? serializeNotificationInbox(payload.items) : null;
+  }
+
+  if (key === NOTIFICATION_INBOX_VIEW_STORAGE_KEY) {
+    return stringifyParsedStorageState(value, parseNotificationInboxView, serializeNotificationInboxView);
+  }
+
+  if (key === PUSH_SUBSCRIPTION_SYNC_STORAGE_KEY) {
+    return stringifyParsedStorageState(
+      value,
+      parsePushSubscriptionSyncRecord,
+      serializePushSubscriptionSyncRecord
+    );
   }
 
   const serialized = JSON.stringify(value);
@@ -338,11 +391,66 @@ function stringifyRestorableValue(key: string, value: unknown): string | null {
 }
 
 function getInvalidRestoreReason(key: string): string {
+  if (key === USER_PREFERENCES_STORAGE_KEY) {
+    return "备份中的本机偏好不符合当前 schema，已跳过";
+  }
+
   if (key === SETTINGS_DEVICES_STORAGE_KEY) {
     return "备份中的设备维护状态不符合当前 schema，已跳过";
   }
 
+  if (key === DEVICE_FAVORITES_STORAGE_KEY) {
+    return "备份中的收藏设备清单不符合当前 schema，已跳过";
+  }
+
+  if (key === DEVICE_FILTER_VIEW_STORAGE_KEY) {
+    return "备份中的设备筛选视图不符合当前 schema，已跳过";
+  }
+
+  if (key === ACTIVITY_LOG_VIEW_STORAGE_KEY) {
+    return "备份中的活动日志筛选视图不符合当前 schema，已跳过";
+  }
+
+  if (key === NOTIFICATION_INBOX_STORAGE_KEY) {
+    return "备份中的通知收件箱不符合当前 schema，已跳过";
+  }
+
+  if (key === NOTIFICATION_INBOX_VIEW_STORAGE_KEY) {
+    return "备份中的通知筛选视图不符合当前 schema，已跳过";
+  }
+
+  if (key === PUSH_SUBSCRIPTION_SYNC_STORAGE_KEY) {
+    return "备份中的推送同步快照不符合当前 schema，已跳过";
+  }
+
   return "备份值不是可恢复的 JSON 状态";
+}
+
+function stringifyFavoriteIds(value: unknown): string | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  if (!value.every((item): item is string => typeof item === "string" && item.trim() !== "")) {
+    return null;
+  }
+
+  return serializeFavoriteIds(value);
+}
+
+function stringifyParsedStorageState<T>(
+  value: unknown,
+  parse: (raw: string | null) => T | null,
+  serialize: (state: T) => string
+): string | null {
+  const serialized = JSON.stringify(value);
+
+  if (typeof serialized !== "string") {
+    return null;
+  }
+
+  const parsed = parse(serialized);
+  return parsed ? serialize(parsed) : null;
 }
 
 function isParseErrorValue(value: unknown): boolean {

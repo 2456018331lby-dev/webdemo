@@ -54,7 +54,7 @@ export type NotificationInboxViewState = {
   savedAt: string;
 };
 
-type NotificationInboxPayload = {
+export type NotificationInboxPayload = {
   schemaVersion: 1;
   items: NotificationInboxItem[];
 };
@@ -136,9 +136,7 @@ export function parseNotificationInbox(raw: string | null): NotificationInboxIte
   }
 
   try {
-    const parsed = JSON.parse(raw) as Partial<NotificationInboxPayload>;
-
-    return normalizeNotificationInboxItems(parsed.items);
+    return normalizeNotificationInboxPayload(JSON.parse(raw))?.items ?? seedNotificationInboxItems;
   } catch {
     return seedNotificationInboxItems;
   }
@@ -167,6 +165,23 @@ export function parseNotificationInboxView(raw: string | null): NotificationInbo
 
 export function serializeNotificationInboxView(view: NotificationInboxViewState): string {
   return JSON.stringify(normalizeNotificationInboxViewState(view));
+}
+
+export function normalizeNotificationInboxPayload(value: unknown): NotificationInboxPayload | null {
+  if (!isRecord(value) || value.schemaVersion !== 1 || !Array.isArray(value.items)) {
+    return null;
+  }
+
+  const items = normalizeNotificationInboxItems(value.items);
+
+  if (value.items.length > 0 && items.length === 0) {
+    return null;
+  }
+
+  return {
+    schemaVersion: 1,
+    items
+  };
 }
 
 export function createNotificationInboxItem(

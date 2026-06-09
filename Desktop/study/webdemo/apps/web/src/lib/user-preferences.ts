@@ -67,6 +67,14 @@ export function serializeUserPreferences(preferences: UserPreferences): string {
   return JSON.stringify(normalizeUserPreferences(preferences));
 }
 
+export function normalizeUserPreferencesState(value: unknown): UserPreferences | null {
+  if (!isRecord(value) || value.schemaVersion !== 1) {
+    return null;
+  }
+
+  return normalizeUserPreferences(value as Partial<UserPreferences>);
+}
+
 export function normalizeUserPreferences(
   preferences: Partial<UserPreferences> | null | undefined
 ): UserPreferences {
