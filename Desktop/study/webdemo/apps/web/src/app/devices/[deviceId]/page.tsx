@@ -31,14 +31,8 @@ export default async function DevicePage({ params }: { params: Promise<{ deviceI
   if (!state) notFound();
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        padding:
-          "var(--space-page-y) var(--space-page-x) calc(132px + env(safe-area-inset-bottom))"
-      }}
-    >
-      <section className="app-shell" style={{ width: "min(1080px, 100%)" }}>
+    <main className="device-detail-main">
+      <section className="app-shell device-detail-shell">
         <DeviceCommandClient
           deviceId={deviceId}
           homeName={found.home.name}

@@ -73,4 +73,24 @@ describe("CommandHistoryList", () => {
     expect(screen.queryByText(/次尝试/)).not.toBeInTheDocument();
     expect(screen.queryByText(/重试时间/)).not.toBeInTheDocument();
   });
+
+  it("treats delivered lifecycle summaries as in-flight, not completed", () => {
+    render(
+      <CommandHistoryList
+        telemetryNote="温度 24.6°C"
+        history={[
+          {
+            commandId: "cmd-delivered-latest",
+            commandType: "relay.set",
+            status: "delivered",
+            requestedAt: "2026-05-10T09:00:04Z"
+          }
+        ]}
+      />
+    );
+
+    const summaryLine = screen.getByText("命令已送达，等待硬件确认中");
+    expect(summaryLine.closest(".lifecycle-summary")).toHaveAttribute("data-status-tone", "inflight");
+    expect(screen.queryByText("最近命令已完成，链路正常")).not.toBeInTheDocument();
+  });
 });

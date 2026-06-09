@@ -263,6 +263,15 @@ a {
   padding: var(--space-8) var(--space-6) calc(var(--space-12) + 24px);
 }
 
+.device-detail-main {
+  min-height: 100vh;
+  padding: var(--space-page-y) var(--space-page-x) calc(132px + env(safe-area-inset-bottom));
+}
+
+.device-detail-shell {
+  width: min(1080px, 100%);
+}
+
 .page-grid {
   display: grid;
   gap: var(--space-6);
@@ -2900,6 +2909,11 @@ a {
   border-color: rgba(102, 230, 255, 0.18);
 }
 
+.lifecycle-summary[data-status-tone="inflight"] {
+  background: var(--warning-bg);
+  border-color: rgba(255, 180, 84, 0.2);
+}
+
 .lifecycle-summary[data-status-tone="success"] {
   background: rgba(31, 212, 169, 0.08);
   border-color: rgba(31, 212, 169, 0.16);
@@ -2919,6 +2933,10 @@ a {
 
 .lifecycle-summary[data-status-tone="queued"] .lifecycle-summary__line--primary {
   color: var(--info);
+}
+
+.lifecycle-summary[data-status-tone="inflight"] .lifecycle-summary__line--primary {
+  color: var(--warning);
 }
 
 .lifecycle-summary[data-status-tone="success"] .lifecycle-summary__line--primary {

@@ -112,6 +112,8 @@ export function CommandHistoryList({ telemetryNote, history }: CommandHistoryLis
       ? "warning"
       : history[0]?.status === "failed"
         ? "danger"
+        : history[0]?.status === "delivered"
+          ? "inflight"
         : history[0]?.status === "queued" && (history[0]?.attemptCount ?? 1) > 1
           ? "queued"
           : "success";

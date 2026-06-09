@@ -1,5 +1,30 @@
 # Progress Log
 
+## 2026-06-09 (命令历史生命周期语义)
+
+### 优化目标
+- 继续收敛设备控制链路的 UI 语义：`delivered` 只代表 ESP32S3 已拉取命令，不代表 STM32H743 已执行并 ack
+- 避免命令历史摘要把“已送达”展示成绿色成功态，降低排障时误判风险
+- 顺手移除设备详情页页面级 inline style，把固定布局参数迁移到 CSS class，保持后续样式维护集中
+
+### 代码变更
+- `CommandHistoryList` 的 lifecycle summary 对 `delivered` 使用 `inflight` tone
+- `globals.css` 为 `.lifecycle-summary[data-status-tone="inflight"]` 增加 warning/in-flight 视觉样式
+- `command-history-list.test.tsx` 新增回归：latest delivered summary 必须是 `data-status-tone="inflight"`，且不能显示“最近命令已完成”
+- `/devices/[deviceId]` 页面新增 `device-detail-main` / `device-detail-shell` class，删除页面级 `style={{...}}`
+
+### 验证
+- `npm test -- --run apps/web/src/components/command-history-list.test.tsx apps/web/src/components/device-command-client.test.tsx`：2 files / 9 tests 通过
+- `npm test -- --run`：24 files / 113 tests 通过
+- `npm run lint`：通过
+- `npm run build`：通过，随后删除 `apps/web/.next/`
+- 真实 polling production smoke：临时设置 `SMART_HOME_COMMAND_DELIVERY=polling` 与 `SMART_HOME_DEVICE_TOKENS=device-relay-01=relay-secret`，桌面 `1366x900` 与移动端 `390x844` 均验证无横向溢出，并确认 delivered summary 的 `data-status-tone` 为 `inflight`
+
+### GitHub 状态
+- 本轮仍按约定优先尝试 GitHub MCP；若继续返回 `Bad credentials`，使用 GitHub CLI Git Data API fallback 非强推发布
+
+---
+
 ## 2026-06-09 (设备命令生命周期反馈)
 
 ### 优化目标
