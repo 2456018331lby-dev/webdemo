@@ -93,6 +93,7 @@ try {
     assert(queuedIds[0] === 'edge-high-salary', `Expected high salary job first, got ${queuedIds.join(', ')}`);
     assert((queuedItems[0]?.score?.compensationScore ?? 0) > (queuedItems[1]?.score?.compensationScore ?? 0), 'Expected high salary compensation score to beat low salary score');
     const queueResearchPreflight = await verifyQueueResearchPreflight(client, queuedIds[0]);
+    const queueExplanation = await verifyQueueExplanationRendered(client);
 
     const rescannedLowSalaryAsBetterJob = {
       ...jobs[1],
@@ -124,6 +125,7 @@ try {
       automationPreflightSearches: automationPreflight.openedSearches,
       queueResearchPreflightTarget: queueResearchPreflight.targetJobId,
       queueResearchPreflightSearches: queueResearchPreflight.openedSearches,
+      queueExplanationRendered: queueExplanation.rendered,
       queueAutoApplyCompleted: queueAutoApply.completedJobId,
       requiredFieldPauseReason: requiredFieldPause.pauseReason,
       rankedJobIds: queuedIds,
@@ -431,6 +433,23 @@ async function verifyQueueResearchPreflight(client, expectedJobId) {
     openedSearches: openedSearches.length,
     missingKeys: target.missingKeys
   };
+}
+
+async function verifyQueueExplanationRendered(client) {
+  await evaluate(client, 'location.reload()');
+  await waitForSidePanelReady(client);
+
+  let text = '';
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    text = await evaluate(client, 'document.body.innerText');
+    if (text.includes('公司依据：') && text.includes('高薪云科技')) break;
+    await sleep(250);
+  }
+
+  assert(text.includes('公司依据：'), `Expected rendered queue to show company ranking reasons, got ${text}`);
+  assert(text.includes('薪资等级') || text.includes('行业匹配') || text.includes('休息制度'), `Expected company ranking reasons to include scoring labels, got ${text}`);
+
+  return { rendered: true };
 }
 
 async function closeBingSearchTabs(client) {

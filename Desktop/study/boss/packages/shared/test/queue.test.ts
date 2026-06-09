@@ -113,7 +113,18 @@ describe('queue policy', () => {
       [
         {
           job: { ...job, id: 'alpha-1', company: { name: 'Alpha', tags: [] } },
-          score: { ...score, jobId: 'alpha-1', score: 91, companyScore: 88 }
+          score: {
+            ...score,
+            jobId: 'alpha-1',
+            score: 91,
+            companyScore: 88,
+            reasons: [
+              { key: 'title', label: '岗位标题匹配', delta: 24, detail: '前端工程师' },
+              { key: 'industry', label: '行业匹配', delta: 10, detail: 'SaaS' },
+              { key: 'salary', label: '薪资等级', delta: 8, detail: '35-45K' },
+              { key: 'skills', label: '技能匹配', delta: 30, detail: 'React' }
+            ]
+          }
         },
         {
           job: { ...job, id: 'alpha-2', title: '前端开发', company: { name: 'Alpha', tags: [] } },
@@ -136,6 +147,9 @@ describe('queue policy', () => {
     expect(ranked[0]?.companyName).toBe('Alpha');
     expect(ranked[0]?.companyRank).toBe(1);
     expect(ranked[0]?.items.map((item) => item.jobRankInCompany)).toEqual([1, 2]);
+    expect(ranked[0]?.companyReasons.map((reason) => reason.key)).toEqual(expect.arrayContaining(['industry', 'salary']));
+    expect(ranked[0]?.companyReasons.map((reason) => reason.key)).not.toContain('title');
+    expect(ranked[0]?.companyReasons.map((reason) => reason.key)).not.toContain('skills');
     expect(ranked[1]?.companyName).toBe('Beta');
     expect(ranked[1]?.companyRank).toBe(2);
   });

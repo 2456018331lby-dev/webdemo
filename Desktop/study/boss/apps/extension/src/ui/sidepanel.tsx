@@ -354,6 +354,9 @@ function SidePanelApp() {
                 <strong>#{company.companyRank} {company.companyName}</strong>
                 <span className="rank-chip">公司 {company.companyGrade} · {Math.round(company.companyScore)}</span>
               </div>
+              <p className="muted">
+                公司依据：{formatCompanyReasons(company.companyReasons)}
+              </p>
               {company.items.slice(0, 5).map((rankedItem) => {
                 const item = rankedItem.item;
                 const coverage = getResearchCoverageForJob(item.job, state?.research ?? []);
@@ -423,6 +426,16 @@ function isReadableResumeFile(file: File): boolean {
 function buildResearchSearchUrl(item: QueueItem): string {
   const query = buildResearchQuery(item.job.company.name, item.job.title);
   return `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
+}
+
+function formatCompanyReasons(reasons: Array<{ label: string; delta: number }>): string {
+  if (reasons.length === 0) return '暂无公司侧资料，等待岗位扫描或全网资料补齐。';
+  return reasons.slice(0, 4).map((reason) => `${reason.label} ${formatDelta(reason.delta)}`).join('；');
+}
+
+function formatDelta(value: number): string {
+  const rounded = Math.round(value);
+  return rounded > 0 ? `+${rounded}` : String(rounded);
 }
 
 createRoot(document.getElementById('root')!).render(<SidePanelApp />);

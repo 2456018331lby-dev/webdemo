@@ -1,4 +1,4 @@
-import type { QueueItem, ScoreGrade } from './types';
+import type { QueueItem, ScoreGrade, ScoreReason } from './types';
 import { normalizeText } from './text';
 
 export interface RankedCompanyGroup {
@@ -7,6 +7,7 @@ export interface RankedCompanyGroup {
   companyRank: number;
   companyScore: number;
   companyGrade: ScoreGrade;
+  companyReasons: ScoreReason[];
   bestJobScore: number;
   items: RankedQueueItem[];
 }
@@ -33,6 +34,8 @@ const RECOMMENDATION_ORDER: Record<QueueItem['score']['recommendation'], number>
   review: 1,
   skip: 2
 };
+
+const COMPANY_REASON_KEYS = new Set(['industry', 'salary', 'bonus', 'benefits', 'rest', 'annualLeave', 'company', 'research']);
 
 export function rankQueueItemsByCompany(items: QueueItem[]): RankedCompanyGroup[] {
   const groupsByCompany = new Map<string, PendingCompanyGroup>();
@@ -72,6 +75,7 @@ export function rankQueueItemsByCompany(items: QueueItem[]): RankedCompanyGroup[
         companyRank,
         companyScore: group.companyScore,
         companyGrade,
+        companyReasons: getCompanyReasons(group.items),
         bestJobScore: group.bestJobScore,
         items: sortJobsWithinCompany(group.items).map((item, itemIndex) => ({
           item,
@@ -111,6 +115,24 @@ function getCompanyKey(item: QueueItem): string {
 
 function getCompanyScore(item: QueueItem): number {
   return item.score.companyScore ?? item.score.score;
+}
+
+function getCompanyReasons(items: QueueItem[]): ScoreReason[] {
+  const reasonsByKey = new Map<string, ScoreReason>();
+
+  for (const item of items) {
+    for (const reason of item.score.reasons) {
+      if (!COMPANY_REASON_KEYS.has(reason.key)) continue;
+      const existing = reasonsByKey.get(reason.key);
+      if (!existing || Math.abs(reason.delta) > Math.abs(existing.delta)) {
+        reasonsByKey.set(reason.key, reason);
+      }
+    }
+  }
+
+  return Array.from(reasonsByKey.values())
+    .sort((left, right) => Math.abs(right.delta) - Math.abs(left.delta))
+    .slice(0, 5);
 }
 
 function getTime(iso: string): number {
