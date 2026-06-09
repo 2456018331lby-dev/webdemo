@@ -1,0 +1,278 @@
+import { parseCompanyResearch, parseResumeText, rankQueueItemsByCompany, type BlacklistRule, type QueueItem, type QueuePolicy } from '@job-assistant/shared';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import type { ExtensionState } from '../storage/state';
+import { sendRuntimeMessage } from './runtime';
+import './styles.css';
+
+function SidePanelApp() {
+  const [state, setState] = useState<ExtensionState | undefined>();
+  const [resumeText, setResumeText] = useState('');
+  const [targets, setTargets] = useState('前端工程师, 全栈工程师, AI应用开发工程师');
+  const [locations, setLocations] = useState('上海, 杭州, 深圳, 远程');
+  const [skills, setSkills] = useState('React, TypeScript, Node');
+  const [researchCompany, setResearchCompany] = useState('');
+  const [researchJobTitle, setResearchJobTitle] = useState('');
+  const [researchUrl, setResearchUrl] = useState('');
+  const [researchTitle, setResearchTitle] = useState('');
+  const [researchSummary, setResearchSummary] = useState('');
+  const [error, setError] = useState<string | undefined>();
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const rankedCompanies = useMemo(() => rankQueueItemsByCompany(state?.queue.items ?? []), [state]);
+
+  async function refresh() {
+    const response = await sendRuntimeMessage({ type: 'GET_STATE' });
+    if (response.ok) setState(response.state);
+    else setError(response.error);
+  }
+
+  async function saveResume() {
+    const resume = parseResumeText({
+      rawText: resumeText,
+      targetTitles: splitCsv(targets),
+      targetLocations: splitCsv(locations),
+      skills: splitCsv(skills)
+    });
+    const response = await sendRuntimeMessage({ type: 'SAVE_RESUME', resume });
+    if (response.ok) setState(response.state);
+    else setError(response.error);
+  }
+
+  async function scanActiveTab() {
+    const response = await sendRuntimeMessage({ type: 'SCAN_ACTIVE_TAB' });
+    if (!response.ok) setError(response.error);
+    setTimeout(refresh, 500);
+  }
+
+  async function updatePolicy(next: QueuePolicy) {
+    const response = await sendRuntimeMessage({ type: 'SET_POLICY', policy: next });
+    if (response.ok) setState(response.state);
+    else setError(response.error);
+  }
+
+  async function addBlacklistRule(kind: BlacklistRule['kind'], value: string) {
+    if (!state || !value.trim()) return;
+    const blacklist: BlacklistRule[] = [
+      ...state.blacklist,
+      { id: `${kind}-${Date.now()}`, kind, value: value.trim(), enabled: true, reason: '用户添加' }
+    ];
+    const response = await sendRuntimeMessage({ type: 'SET_BLACKLIST', blacklist });
+    if (response.ok) setState(response.state);
+    else setError(response.error);
+  }
+
+  async function runNextDryRun() {
+    const response = await sendRuntimeMessage({ type: 'RUN_NEXT_APPLICATION' });
+    if (response.ok) setState(response.state);
+    else setError(response.error);
+  }
+
+  async function startQueueAutomation() {
+    const response = await sendRuntimeMessage({ type: 'START_QUEUE_AUTOMATION' });
+    if (response.ok) setState(response.state);
+    else setError(response.error);
+  }
+
+  async function stopQueueAutomation() {
+    const response = await sendRuntimeMessage({ type: 'STOP_QUEUE_AUTOMATION' });
+    if (response.ok) setState(response.state);
+    else setError(response.error);
+  }
+
+  async function saveResearch() {
+    if (!researchCompany.trim() || !researchSummary.trim()) return;
+    const record = parseCompanyResearch({
+      companyName: researchCompany,
+      jobTitle: researchJobTitle,
+      sourceUrl: researchUrl,
+      sourceTitle: researchTitle,
+      summary: researchSummary,
+      capturedAt: new Date().toISOString()
+    });
+    const response = await sendRuntimeMessage({ type: 'SAVE_RESEARCH', record });
+    if (response.ok) {
+      setState(response.state);
+      setResearchSummary('');
+    } else {
+      setError(response.error);
+    }
+  }
+
+  async function openResearchSearch(companyName = researchCompany, jobTitle = researchJobTitle) {
+    if (!companyName.trim()) return;
+    const response = await sendRuntimeMessage({ type: 'OPEN_RESEARCH_SEARCH', companyName, jobTitle });
+    if (!response.ok) setError(response.error);
+  }
+
+  async function captureActiveResearch() {
+    if (!researchCompany.trim()) return;
+    const response = await sendRuntimeMessage({ type: 'CAPTURE_ACTIVE_RESEARCH', companyName: researchCompany, jobTitle: researchJobTitle });
+    if (response.ok) setState(response.state);
+    else setError(response.error);
+  }
+
+  function prepareResearchForItem(item: QueueItem) {
+    setResearchCompany(item.job.company.name);
+    setResearchJobTitle(item.job.title);
+    setResearchUrl('');
+    setResearchTitle('');
+    void openResearchSearch(item.job.company.name, item.job.title);
+  }
+
+  const policy = state?.policy;
+
+  return (
+    <main className="app">
+      <section className="card">
+        <span className="badge">本地优先 · 安全投递</span>
+        <h1>求职投递助手</h1>
+        <p className="muted">默认 dry-run，不绕过验证码/风控；识别异常会暂停。</p>
+        {error && <p className="muted">错误：{error}</p>}
+      </section>
+
+      <section className="card">
+        <h2>1. 简历画像</h2>
+        <textarea placeholder="粘贴简历文本；PDF/Word 解析接口已预留，MVP 先支持文本粘贴。" value={resumeText} onChange={(event) => setResumeText(event.target.value)} />
+        <div className="row">
+          <input value={targets} onChange={(event) => setTargets(event.target.value)} aria-label="目标岗位" />
+          <input value={locations} onChange={(event) => setLocations(event.target.value)} aria-label="目标城市" />
+        </div>
+        <input value={skills} onChange={(event) => setSkills(event.target.value)} aria-label="技能" />
+        <button disabled={!resumeText.trim()} onClick={saveResume}>保存简历画像</button>
+        {state?.resume && <p className="muted">已保存：{state.resume.skills.length} 个技能，{state.resume.targetTitles.length} 个目标岗位。</p>}
+      </section>
+
+      <section className="card">
+        <h2>2. 页面扫描与队列</h2>
+        <div className="row">
+          <button onClick={scanActiveTab}>扫描当前招聘页</button>
+          <button className="secondary" onClick={refresh}>刷新状态</button>
+        </div>
+        <p className="muted">已识别岗位：{state?.jobs.length ?? 0}；队列：{state?.queue.items.length ?? 0}</p>
+      </section>
+
+      {policy && (
+        <section className="card">
+          <h2>3. 投递策略</h2>
+          <div className="row">
+            <select value={policy.mode} onChange={(event) => updatePolicy({ ...policy, mode: event.target.value as QueuePolicy['mode'] })}>
+              <option value="dry-run">dry-run 只记录</option>
+              <option value="manual-approval">人工确认</option>
+              <option value="auto">自动队列</option>
+            </select>
+            <input type="number" value={policy.dailyLimit} onChange={(event) => updatePolicy({ ...policy, dailyLimit: Number(event.target.value) })} />
+          </div>
+          <input type="number" value={policy.minMinutesBetweenActions} onChange={(event) => updatePolicy({ ...policy, minMinutesBetweenActions: Number(event.target.value) })} />
+          <div className="row">
+            <button className="warning" onClick={runNextDryRun}>执行下一条队列动作</button>
+            <button className="secondary" disabled={policy.mode !== 'auto' || state?.runner.enabled} onClick={startQueueAutomation}>启动自动队列</button>
+            <button className="secondary" disabled={!state?.runner.enabled} onClick={stopQueueAutomation}>停止自动队列</button>
+          </div>
+          <p className="muted">
+            自动队列：{state?.runner.enabled ? '运行中' : '未启动'}
+            {state?.runner.lastTickAt ? ` · 上次执行 ${new Date(state.runner.lastTickAt).toLocaleString()}` : ''}
+            {state?.runner.message ? ` · ${state.runner.message}` : ''}
+          </p>
+        </section>
+      )}
+
+      <section className="card">
+        <h2>4. 黑名单</h2>
+        <div className="row">
+          <button className="secondary" onClick={() => addBlacklistRule('keyword', '大小周')}>+ 大小周</button>
+          <button className="secondary" onClick={() => addBlacklistRule('keyword', '销售')}>+ 销售</button>
+          <button className="secondary" onClick={() => addBlacklistRule('keyword', '薪资面议')}>+ 薪资面议</button>
+        </div>
+        <p className="muted">规则：{state?.blacklist.filter((rule) => rule.enabled).map((rule) => rule.value).join('、')}</p>
+      </section>
+
+      <section className="card">
+        <h2>5. 全网资料</h2>
+        <div className="row">
+          <input placeholder="公司名" value={researchCompany} onChange={(event) => setResearchCompany(event.target.value)} />
+          <input placeholder="岗位名（可选）" value={researchJobTitle} onChange={(event) => setResearchJobTitle(event.target.value)} />
+        </div>
+        <div className="row">
+          <input placeholder="来源链接（可选）" value={researchUrl} onChange={(event) => setResearchUrl(event.target.value)} />
+          <input placeholder="来源标题（可选）" value={researchTitle} onChange={(event) => setResearchTitle(event.target.value)} />
+        </div>
+        <textarea className="compact-textarea" placeholder="粘贴搜索到的薪资、奖金、福利、双休/大小周、年假、加班、风险等资料摘要。" value={researchSummary} onChange={(event) => setResearchSummary(event.target.value)} />
+        <div className="row">
+          <button disabled={!researchCompany.trim() || !researchSummary.trim()} onClick={saveResearch}>保存并重排队列</button>
+          <button className="secondary" disabled={!researchCompany.trim()} onClick={() => openResearchSearch()}>打开搜索</button>
+        </div>
+        <button className="secondary" disabled={!researchCompany.trim()} onClick={captureActiveResearch}>捕获当前页资料</button>
+        <p className="muted">已保存资料：{state?.research.length ?? 0} 条。保存后会重新计算公司分和岗位排序。</p>
+        <div className="list">
+          {(state?.research ?? []).slice(0, 5).map((record) => (
+            <article className="research-item" key={record.id}>
+              <strong>{record.companyName}{record.jobTitle ? ` · ${record.jobTitle}` : ''}</strong>
+              <p className="muted">
+                置信度 {record.confidence} · 薪资 {record.salary?.raw ?? '未知'} · 福利 {record.benefits.length} · 风险 {record.warnings.length}
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>6. 投递队列</h2>
+        <div className="list">
+          {rankedCompanies.slice(0, 12).map((company) => (
+            <article className="company-group" key={company.companyKey}>
+              <div className="company-heading">
+                <strong>#{company.companyRank} {company.companyName}</strong>
+                <span className="rank-chip">公司 {company.companyGrade} · {Math.round(company.companyScore)}</span>
+              </div>
+              {company.items.slice(0, 5).map((rankedItem) => {
+                const item = rankedItem.item;
+                return (
+                  <div className="job" key={item.id}>
+                    <strong>#{rankedItem.jobRankInCompany} {item.job.title}</strong>
+                    <p className="muted">{item.job.location ?? '地点未知'} · {item.status}</p>
+                    <p>
+                      <span className="score">{item.score.score}</span> / 100 · 岗位 {item.score.jobGrade ?? '-'}
+                    </p>
+                    <p className="muted">薪酬 {item.score.compensationScore ?? 0} · 休息/年假 {item.score.workLifeScore ?? 0} · 匹配 {item.score.jobFitScore ?? 0}</p>
+                    <p className="muted">{item.score.reasons.slice(0, 3).map((reason) => `${reason.label}: ${Math.round(reason.delta)}`).join('；')}</p>
+                    <div className="row">
+                      <button className="secondary" onClick={() => prepareResearchForItem(item)}>搜索此岗位资料</button>
+                      <a className="research-link" href={buildResearchSearchUrl(item)} target="_blank" rel="noreferrer">打开搜索链接</a>
+                    </div>
+                  </div>
+                );
+              })}
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>7. 审计日志</h2>
+        <div className="list">
+          {(state?.auditLog ?? []).slice(0, 12).map((entry) => (
+            <div className="log" key={entry.id}>
+              <strong>{entry.action}</strong>
+              <p className="muted">{entry.message}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function splitCsv(value: string): string[] {
+  return value.split(/[,，]/).map((item) => item.trim()).filter(Boolean);
+}
+
+function buildResearchSearchUrl(item: QueueItem): string {
+  const query = `${item.job.company.name} ${item.job.title} 薪资 奖金 福利 双休 年假 加班`;
+  return `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
+}
+
+createRoot(document.getElementById('root')!).render(<SidePanelApp />);
