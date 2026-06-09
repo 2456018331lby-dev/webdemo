@@ -1,5 +1,30 @@
 # Progress Log
 
+## 2026-06-09 (CSV 导出公式注入防护)
+
+### 优化目标
+- 继续做低冗余、高价值的逻辑完善，不新增页面、不新增依赖、不保留截图或构建产物
+- 当前 `/activity` 与 `/devices` 复用 `toCsv()` 导出；未来日志消息、设备名或房间名可能来自用户、设备或后端数据，需要在统一导出层处理表格公式注入风险
+
+### 代码变更
+- `apps/web/src/lib/export-data.ts` 新增 CSV 文本单元格 neutralize 逻辑
+- 字符串值以 `= + - @`、tab、CR 或 LF 开头时，导出为带前导 apostrophe 的文本，避免常见表格软件按公式执行
+- 数字类型不走文本 neutralize，负数仍导出为 `-3`，避免破坏数值语义
+- `apps/web/src/lib/export-data.test.ts` 新增覆盖公式字符串、`@` 字符串和负数值的回归测试
+
+### 验证
+- `npm test -- --run apps/web/src/lib/export-data.test.ts`：1 file / 5 tests 通过
+- `npm run lint`：通过
+- `npm test -- --run`：23 files / 99 tests 通过
+- `npm run build`：通过，`/activity` page size 约 4.68 kB，`/devices` page size 约 5.69 kB
+- build 后已删除 `apps/web/.next/`，当前未保留新的测试截图、trace 或构建输出
+
+### GitHub 状态
+- 本轮仍按约定优先尝试 GitHub MCP；若继续返回 `Bad credentials`，使用 GitHub CLI Git Data API fallback 非强推发布
+- 实际提交哈希以 Git history 和最终发布回执为准，避免在同一提交内写入会自我失效的哈希
+
+---
+
 ## 2026-06-09 (设置中心本机状态刷新收敛)
 
 ### 清理目标

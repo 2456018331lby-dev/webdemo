@@ -26,6 +26,27 @@ describe("export data helpers", () => {
     expect(csv).toBe("名称,备注\r\n\"主灯,继电器\",\"ack \"\"ok\"\"\nready\"");
   });
 
+  it("neutralizes spreadsheet formulas in exported text cells", () => {
+    const csv = toCsv(
+      [
+        {
+          name: "=HYPERLINK(\"https://example.invalid\",\"open\")",
+          alias: "@relay",
+          offset: -3
+        }
+      ],
+      [
+        { header: "名称", value: (row) => row.name },
+        { header: "别名", value: (row) => row.alias },
+        { header: "数值", value: (row) => row.offset }
+      ]
+    );
+
+    expect(csv).toBe(
+      "名称,别名,数值\r\n\"'=HYPERLINK(\"\"https://example.invalid\"\",\"\"open\"\")\",'@relay,-3"
+    );
+  });
+
   it("builds safe date-stamped filenames", () => {
     expect(makeExportFilename("Activity Logs", ".CSV", new Date("2026-06-07T08:00:00.000Z"))).toBe(
       "activity-logs-2026-06-07.csv"

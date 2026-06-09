@@ -193,10 +193,20 @@ export function getDeviceTypeLabel(type: string): string {
 }
 
 function escapeCsvValue(value: ExportPrimitive): string {
-  const text = value == null ? "" : String(value);
+  const text = value == null ? "" : sanitizeCsvText(value);
 
   if (/[",\r\n]/.test(text)) {
     return `"${text.replace(/"/g, "\"\"")}"`;
+  }
+
+  return text;
+}
+
+function sanitizeCsvText(value: Exclude<ExportPrimitive, null | undefined>): string {
+  const text = String(value);
+
+  if (typeof value === "string" && /^[=+\-@\t\r\n]/.test(value)) {
+    return `'${text}`;
   }
 
   return text;
