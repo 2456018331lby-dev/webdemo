@@ -235,7 +235,15 @@ Read these first:
 
 ## GitHub 推送说明
 
-本地 Git 仓库已初始化。2026-06-07 已完成本地 commits，但推送尚未成功。
+本地 Git 仓库已初始化。2026-06-09 已通过 GitHub CLI 的 Git Data API fallback 将当前 `webdemo` tracked tree 发布到远程默认分支 `hermeswork` 的 `Desktop/study/webdemo/` 子树。
+
+GitHub API 发布记录：
+- 按用户要求尝试 GitHub MCP：`mcp__github.list_commits` 返回 `Bad credentials`，当前 GitHub MCP 凭据不可用
+- 本地 `gh auth status` 有可用 `repo` 权限；但 native git fetch/push 仍无法连接 `github.com:443`
+- 首个 full-tree Git Data API sync commit：`80fbe5b5d059cfa3a83c40c329d91111806aa346`
+- 远程目标：`2456018331lby-dev/webdemo` / `hermeswork`
+- 远程路径：`Desktop/study/webdemo/`
+- 发布范围：本地 109 个 tracked 文件；未触碰远程 sibling 目录 `Desktop/study/boss/`、`Desktop/study/ccdemo/`
 
 已知推送失败记录：
 - 第一次执行 `git push github main` 失败，GitHub 返回：
@@ -281,8 +289,9 @@ Read these first:
 - 离线恢复面板提交后再次执行 `git push github main` 失败，GitHub 返回：
 `Invalid username or token. Password authentication is not supported for Git operations.`
 
-需要更新 GitHub token，并确认当前网络可以访问 `github.com:443` 后才能推送：
+仍需要修复 GitHub MCP 凭据和 native git transport，之后再决定是否清理远程分支布局（当前默认分支是 `hermeswork`，且 workspace 位于 `Desktop/study/webdemo/` 子树）。如果继续使用 native git 推送，建议先保持 remote URL 不嵌入 token，并让 `gh auth setup-git` 管理凭据：
 ```bash
-git remote set-url github https://<username>:<new_token>@github.com/2456018331lby-dev/webdemo.git
+git remote set-url github https://github.com/2456018331lby-dev/webdemo.git
+gh auth setup-git
 git push github main
 ```

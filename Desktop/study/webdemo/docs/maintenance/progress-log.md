@@ -35,8 +35,11 @@
 
 ### GitHub 状态
 - 本轮本地 commit 已完成：`Make offline recovery actionable inside the PWA shell`
-- `git push github main` 未成功：GitHub 返回当前 remote token 无效
-- 真实远程推送仍需要更新/确认 GitHub token，并确认当前网络可以稳定访问 GitHub
+- 按用户要求尝试 GitHub MCP：`mcp__github.list_commits` 返回 `Bad credentials`，当前 MCP 凭据不可用
+- GitHub CLI 认证有效，但 native git fetch/push 仍无法连接 `github.com:443`
+- 已通过 GitHub Git Data API fallback 发布远程 commit：`80fbe5b5d059cfa3a83c40c329d91111806aa346`
+- 发布目标为远程默认分支 `hermeswork` 的 `Desktop/study/webdemo/` 子树，本地 109 个 tracked 文件已同步；远程 sibling 目录未触碰
+- 后续仍需要修复 GitHub MCP 凭据 / native git transport，并决定是否把远程仓库布局清理为干净的 webdemo 根目录
 
 ---
 

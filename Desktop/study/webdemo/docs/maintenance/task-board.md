@@ -74,6 +74,7 @@ Last updated: `2026-06-09`
 - [x] OfflineRecoveryPanel 单元测试覆盖离线重试态和在线恢复态
 - [x] Playwright 覆盖离线恢复状态和恢复面板动作
 - [x] 所有 94 个测试通过
+- [x] GitHub API fallback 已将当前 webdemo tracked tree 同步到远程 `hermeswork` / `Desktop/study/webdemo/`
 
 ## Android / App Packaging
 
@@ -108,4 +109,6 @@ Last updated: `2026-06-09`
 
 - [ ] Vercel/Netlify 部署
 - [ ] Sentry 监控
-- [ ] 更新 GitHub remote token 并推送本地 main
+- [ ] 修复 GitHub MCP 凭据，恢复 MCP 读写能力
+- [ ] 修复 native git transport / remote 凭据，恢复常规 `git push`
+- [ ] 清理远程分支布局：确认默认分支 `hermeswork` 与 `main`、以及 `Desktop/study/webdemo/` 子树是否需要归并为仓库根目录
