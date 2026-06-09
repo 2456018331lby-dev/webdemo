@@ -418,7 +418,7 @@ async function runNextApplicationAction(nowIso: string, source: 'manual' | 'auto
 
 async function startQueueAutomation(): Promise<ExtensionState> {
   const nowIso = new Date().toISOString();
-  const state = await updateState((current) => {
+  let state = await updateState((current) => {
     if (current.policy.mode !== 'auto') {
       return {
         ...current,
@@ -454,6 +454,20 @@ async function startQueueAutomation(): Promise<ExtensionState> {
       })
     };
   });
+
+  if (state.runner.enabled && state.policy.requireResearchBeforeAuto) {
+    const preflight = await openQueueResearchSearches(undefined, 'auto-queue');
+    state = preflight.state;
+    if (preflight.targetCount > 0) {
+      state = await updateState((current) => ({
+        ...current,
+        runner: {
+          ...current.runner,
+          message: `自动队列已启动，已先为 ${preflight.targetCount} 个高优先级岗位打开 ${preflight.queryCount} 个资料搜索。`
+        }
+      }));
+    }
+  }
 
   if (state.runner.enabled) await scheduleQueueAutomation(state.policy, state.queue);
   else await chrome.alarms.clear(QUEUE_AUTOMATION_ALARM);
@@ -659,7 +673,10 @@ async function saveResearchRecord(record: CompanyResearchRecord): Promise<Awaite
   }));
 }
 
-async function openQueueResearchSearches(limitInput?: number): Promise<{ state: ExtensionState; targetCount: number; queryCount: number }> {
+async function openQueueResearchSearches(
+  limitInput?: number,
+  source: PendingResearchTarget['source'] = 'manual-search'
+): Promise<{ state: ExtensionState; targetCount: number; queryCount: number }> {
   const nowIso = new Date().toISOString();
   const limit = normalizeQueueResearchLimit(limitInput);
   let queriesToOpen: ResearchQuery[] = [];
@@ -693,7 +710,7 @@ async function openQueueResearchSearches(limitInput?: number): Promise<{ state: 
           missingKeys: target.coverage.missingKeys,
           missingLabels: target.coverage.missingLabels,
           queries: target.queries,
-          source: 'manual-search',
+          source,
           nowIso
         })
       ),

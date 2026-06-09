@@ -81,6 +81,7 @@ try {
     }
 
     const autoResearch = await verifyAutoResearchCapture(client, port, resume, nowIso);
+    const automationPreflight = await verifyStartAutomationPreflight(client, resume, nowIso);
     const queueAutoApply = await verifyQueueAutoApply(client, port, resume, nowIso);
     const requiredFieldPause = await verifyQueueRequiredFieldPause(client, port, resume, nowIso);
 
@@ -119,6 +120,8 @@ try {
       scannedJobQueued: true,
       autoApplyClicked: true,
       autoResearchCaptured: autoResearch.recordCount,
+      automationPreflightTarget: automationPreflight.targetJobId,
+      automationPreflightSearches: automationPreflight.openedSearches,
       queueResearchPreflightTarget: queueResearchPreflight.targetJobId,
       queueResearchPreflightSearches: queueResearchPreflight.openedSearches,
       queueAutoApplyCompleted: queueAutoApply.completedJobId,
@@ -420,14 +423,7 @@ async function verifyQueueResearchPreflight(client, expectedJobId) {
   assert(target.queries?.length > 0, `Expected preflight target to include search queries, got ${JSON.stringify(target)}`);
   assert(response.state?.auditLog?.[0]?.action === 'research.preflight.opened', `Expected research.preflight.opened audit log, got ${response.state?.auditLog?.[0]?.action}`);
 
-  const openedSearches = await evaluate(
-    client,
-    `new Promise((resolve) => chrome.tabs.query({ url: 'https://www.bing.com/search*' }, (tabs) => {
-      const ids = tabs.map((tab) => tab.id).filter(Boolean);
-      if (ids.length > 0) chrome.tabs.remove(ids, () => resolve(tabs.map((tab) => tab.url)));
-      else resolve([]);
-    }))`
-  );
+  const openedSearches = await closeBingSearchTabs(client);
   assert(openedSearches.length >= target.queries.length, `Expected opened Bing tabs for preflight queries, got ${JSON.stringify(openedSearches)}`);
 
   return {
@@ -435,6 +431,17 @@ async function verifyQueueResearchPreflight(client, expectedJobId) {
     openedSearches: openedSearches.length,
     missingKeys: target.missingKeys
   };
+}
+
+async function closeBingSearchTabs(client) {
+  return evaluate(
+    client,
+    `new Promise((resolve) => chrome.tabs.query({ url: 'https://www.bing.com/search*' }, (tabs) => {
+      const ids = tabs.map((tab) => tab.id).filter(Boolean);
+      if (ids.length > 0) chrome.tabs.remove(ids, () => resolve(tabs.map((tab) => tab.url)));
+      else resolve([]);
+    }))`
+  );
 }
 
 async function verifyAutoResearchCapture(client, port, resume, nowIso) {
@@ -479,6 +486,42 @@ async function verifyAutoResearchCapture(client, port, resume, nowIso) {
     fakeBingPage.client.close();
     await closeTarget(port, fakeBingPage.target.id);
   }
+}
+
+async function verifyStartAutomationPreflight(client, resume, nowIso) {
+  await clearExtensionStorage(client);
+  await sendRuntimeMessage(client, { type: 'SAVE_RESUME', resume });
+  await sendRuntimeMessage(client, {
+    type: 'SET_POLICY',
+    policy: {
+      dailyLimit: 20,
+      minMinutesBetweenActions: 3,
+      maxQueueSize: 100,
+      mode: 'auto',
+      requireResearchBeforeAuto: true
+    }
+  });
+
+  const job = makeQueueAutoApplyJob(nowIso);
+  await sendRuntimeMessage(client, { type: 'QUEUE_JOBS', jobs: [job] });
+  const started = await sendRuntimeMessage(client, { type: 'START_QUEUE_AUTOMATION' });
+  const target = started.state?.pendingResearchTargets?.find((item) => item.jobId === job.id);
+  const item = started.state?.queue?.items?.find((queueItem) => queueItem.job.id === job.id);
+
+  assert(started.state?.runner?.enabled === true, `Expected automation runner to stay enabled, got ${JSON.stringify(started.state?.runner)}`);
+  assert(started.state?.runner?.message?.includes('资料搜索'), `Expected runner message to mention research searches, got ${started.state?.runner?.message}`);
+  assert(item?.status === 'queued', `Expected automation start preflight not to mark job attempted, got ${item?.status}`);
+  assert(target?.source === 'auto-queue', `Expected auto-queue pending research target, got ${JSON.stringify(target)}`);
+  assert(started.state?.auditLog?.[0]?.action === 'research.preflight.opened', `Expected research.preflight.opened audit log on automation start, got ${started.state?.auditLog?.[0]?.action}`);
+
+  const openedSearches = await closeBingSearchTabs(client);
+  assert(openedSearches.length >= target.queries.length, `Expected automation start to open Bing tabs, got ${JSON.stringify(openedSearches)}`);
+
+  await sendRuntimeMessage(client, { type: 'STOP_QUEUE_AUTOMATION' });
+  return {
+    targetJobId: target.jobId,
+    openedSearches: openedSearches.length
+  };
 }
 
 async function verifyQueueAutoApply(client, port, resume, nowIso) {
