@@ -3,7 +3,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { CommandHistoryList } from "./command-history-list";
-import { DeviceControlPanel, type RelayCommandSendResult } from "./device-control-panel";
+import {
+  DeviceControlPanel,
+  type RelayCommandLifecycleUpdate,
+  type RelayCommandSendResult
+} from "./device-control-panel";
 import {
   computeRelayCommandCooldownMs,
   formatReliabilityBandCN,
@@ -39,6 +43,7 @@ type CommandResponsePayload = {
     result?: string;
   };
   command?: {
+    commandId?: string;
     status?: string;
   };
   commandHistory?: CmdEntry[];
@@ -95,20 +100,24 @@ function getStatusColor(status?: "normal" | "warning" | "danger") {
 }
 
 function getRelaySendResult(payload: CommandResponsePayload): RelayCommandSendResult {
+  const commandId = payload.command?.commandId ?? payload.commandHistory?.[0]?.commandId;
+
   if (payload.deliveryMode === "polling") {
     return {
       status: "queued",
+      commandId,
       note: "命令已进入 ESP32S3 轮询队列，等待设备拉取并上报确认。"
     };
   }
 
   if (payload.ack?.result === "ok") {
-    return { status: "acknowledged" };
+    return { status: "acknowledged", commandId };
   }
 
   if (payload.ack?.result === "busy") {
     return {
       status: "queued",
+      commandId,
       note: "硬件暂忙，命令已保留在重试队列，等待后续生命周期重试。"
     };
   }
@@ -118,11 +127,12 @@ function getRelaySendResult(payload: CommandResponsePayload): RelayCommandSendRe
   if (latestStatus === "queued" || latestStatus === "delivered") {
     return {
       status: "queued",
+      commandId,
       note: "命令尚未收到硬件 ack，当前仍显示设备最后一次上报状态。"
     };
   }
 
-  return { status: "acknowledged" };
+  return { status: "acknowledged", commandId };
 }
 
 export function DeviceCommandClient({
@@ -183,6 +193,12 @@ export function DeviceCommandClient({
   const telemetryData = useMemo(() => formatTelemetryCN(telemetryNote), [telemetryNote]);
   
   const toneIcon = risk === "high" ? "🔴" : risk === "medium" ? "🟡" : "🟢";
+  const latestCommand: RelayCommandLifecycleUpdate | undefined = history[0]
+    ? {
+        commandId: history[0].commandId,
+        status: history[0].status
+      }
+    : undefined;
 
   async function send(nextValue: boolean): Promise<RelayCommandSendResult> {
     const res = await fetch(`/api/devices/${deviceId}/commands`, {
@@ -326,6 +342,7 @@ export function DeviceCommandClient({
           deviceType={deviceType}
           relayOn={relayOn}
           isOffline={offline}
+          latestCommand={latestCommand}
           commandCooldownMs={ctrl.cooldownMs}
           onSendRelayCommand={send}
         />

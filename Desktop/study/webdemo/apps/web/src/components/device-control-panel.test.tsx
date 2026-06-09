@@ -1,17 +1,23 @@
 import React from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DeviceControlPanel, type RelayCommandSendResult } from "./device-control-panel";
+import {
+  DeviceControlPanel,
+  type RelayCommandLifecycleUpdate,
+  type RelayCommandSendResult
+} from "./device-control-panel";
 
 function ControlledHarness({
   initialRelayOn,
   isOffline = false,
   onSendRelayCommand = vi.fn().mockResolvedValue(undefined),
+  latestCommand,
   commandCooldownMs
 }: {
   initialRelayOn: boolean;
   isOffline?: boolean;
   onSendRelayCommand?: (nextValue: boolean) => Promise<RelayCommandSendResult | void>;
+  latestCommand?: RelayCommandLifecycleUpdate;
   commandCooldownMs?: number;
 }) {
   const [relayOn, setRelayOn] = React.useState(initialRelayOn);
@@ -22,6 +28,7 @@ function ControlledHarness({
       deviceType="relay-controller"
       relayOn={relayOn}
       isOffline={isOffline}
+      latestCommand={latestCommand}
       commandCooldownMs={commandCooldownMs}
       onSendRelayCommand={async (nextValue) => {
         const result = await onSendRelayCommand(nextValue);
@@ -98,6 +105,76 @@ describe("DeviceControlPanel", () => {
     expect(screen.getByText(/等待硬件确认/)).toBeInTheDocument();
     expect(screen.getByText(/ESP32S3 轮询队列/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /等待确认/ })).toBeDisabled();
+    expect(screen.getByText("关")).toBeInTheDocument();
+  });
+
+  it("shows delivered lifecycle feedback while still waiting for hardware ack", async () => {
+    const commandId = "cmd-delivered-1";
+    const onSendRelayCommand = vi.fn().mockResolvedValue({
+      status: "queued",
+      commandId,
+      note: "命令已进入 ESP32S3 轮询队列，等待设备拉取并上报确认。"
+    } satisfies RelayCommandSendResult);
+
+    const { rerender } = render(
+      <ControlledHarness initialRelayOn={false} onSendRelayCommand={onSendRelayCommand} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /开启/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/已排队/)).toBeInTheDocument();
+    });
+
+    rerender(
+      <ControlledHarness
+        initialRelayOn={false}
+        latestCommand={{ commandId, status: "delivered" }}
+        onSendRelayCommand={onSendRelayCommand}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("📨 已送达")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/已送达 ESP32S3/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /等待确认/ })).toBeDisabled();
+    expect(screen.getByText("关")).toBeInTheDocument();
+  });
+
+  it("unlocks queued relay control when the matching command times out", async () => {
+    const commandId = "cmd-timeout-1";
+    const onSendRelayCommand = vi.fn().mockResolvedValue({
+      status: "queued",
+      commandId,
+      note: "命令已进入 ESP32S3 轮询队列，等待设备拉取并上报确认。"
+    } satisfies RelayCommandSendResult);
+
+    const { rerender } = render(
+      <ControlledHarness initialRelayOn={false} onSendRelayCommand={onSendRelayCommand} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /开启/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/已排队/)).toBeInTheDocument();
+    });
+
+    rerender(
+      <ControlledHarness
+        initialRelayOn={false}
+        latestCommand={{ commandId, status: "timed_out" }}
+        onSendRelayCommand={onSendRelayCommand}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/命令超时/)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/等待硬件确认/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /开启/ })).not.toBeDisabled();
     expect(screen.getByText("关")).toBeInTheDocument();
   });
 

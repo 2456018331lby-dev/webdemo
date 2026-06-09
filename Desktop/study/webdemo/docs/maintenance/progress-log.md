@@ -1,5 +1,37 @@
 # Progress Log
 
+## 2026-06-09 (设备命令生命周期反馈)
+
+### 优化目标
+- 延续 polling 下行链路：网页已经能显示 queued，但后续 `delivered` / `failed` / `timed_out` 生命周期变化也需要反馈到控制卡
+- 保持 desired state 和 reported state 分离：命令送达 ESP32S3 不等于 STM32H743 已 ack，不能提前改写继电器 reported state
+- 避免本地等待锁卡死：匹配命令超时或失败后，用户应看到错误并能重新发起控制
+
+### 代码变更
+- `RelayCommandSendResult` 增加 `commandId`，`DeviceCommandClient` 从 POST payload 的 `command` / `commandHistory` 传回本次命令 ID
+- `DeviceCommandClient` 将最新 `commandHistory[0]` 作为生命周期更新传给 `DeviceControlPanel`
+- `DeviceControlPanel` 用 `commandId` 匹配本地 pending 命令：`delivered` 改显示“已送达”并继续锁定等待 ack；`failed` / `timed_out` 清除 pending、解除冷却锁并显示错误原因
+- 控制按钮优先显示“等待确认”，避免 queued 命令同时处于冷却期时被“冷却”文案遮住真实等待状态
+- 补充 2 条组件回归，覆盖 delivered 仍等待 ack、timed_out 解锁并提示错误
+
+### 清理
+- 删除 ignored 的 `.omx/project-memory.json` 本地运行状态；当前未保留 `.omx/`
+- build 后删除 `apps/web/.next/`
+- 未生成或保留截图、trace、coverage、Playwright report、临时脚本或旧版备份文件
+- 保留 `node_modules/`，因为后续 lint / test / build 仍需要依赖目录，且它不会进入 Git 跟踪
+
+### 验证
+- `npm test -- --run apps/web/src/components/device-control-panel.test.tsx apps/web/src/components/device-command-client.test.tsx`：2 files / 14 tests 通过
+- `npm test -- --run`：24 files / 112 tests 通过
+- `npm run lint`：通过
+- `npm run build`：通过，随后删除 `apps/web/.next/`
+- 真实 polling production smoke：临时设置 `SMART_HOME_COMMAND_DELIVERY=polling` 与 `SMART_HOME_DEVICE_TOKENS=device-relay-01=relay-secret`，桌面 `1366x900` 与移动端 `390x844` 均完成“点击控制 → 已排队 → 设备 pending 拉取 → 已送达 → 按钮仍等待确认禁用”
+
+### GitHub 状态
+- 本轮仍按约定优先尝试 GitHub MCP；若继续返回 `Bad credentials`，使用 GitHub CLI Git Data API fallback 非强推发布
+
+---
+
 ## 2026-06-09 (设备控制 pending 反馈)
 
 ### 优化目标

@@ -4,7 +4,15 @@ import React, { useEffect, useMemo, useState } from "react";
 
 export type RelayCommandSendResult = {
   status: "acknowledged" | "queued";
+  commandId?: string;
   note?: string;
+};
+
+export type RelayCommandLifecycleStatus = "queued" | "delivered" | "acknowledged" | "failed" | "timed_out";
+
+export type RelayCommandLifecycleUpdate = {
+  commandId?: string;
+  status?: RelayCommandLifecycleStatus | string;
 };
 
 type Props = {
@@ -12,17 +20,25 @@ type Props = {
   deviceType?: string;
   relayOn: boolean;
   isOffline: boolean;
+  latestCommand?: RelayCommandLifecycleUpdate;
   commandCooldownMs?: number;
   onSendRelayCommand: (nextValue: boolean) => Promise<RelayCommandSendResult | void>;
 };
 
 type PendingCommand = {
+  commandId?: string;
   targetRelayOn: boolean;
   action: string;
+  lifecycleStatus: "queued" | "delivered";
   note: string;
 };
 
 const DEFAULT_QUEUED_NOTE = "命令已排队，等待 ESP32S3 拉取、STM32H743 执行并通过上行 ack 确认。";
+const DELIVERED_NOTE = "命令已送达 ESP32S3，等待 STM32H743 执行并上行 ack。";
+const FAILURE_MESSAGES: Record<"failed" | "timed_out", string> = {
+  failed: "命令失败，硬件未确认。",
+  timed_out: "命令超时，未收到硬件确认。"
+};
 
 function getDeviceIcon(type?: string): string {
   switch (type) {
@@ -40,6 +56,7 @@ export function DeviceControlPanel({
   deviceType,
   relayOn,
   isOffline,
+  latestCommand,
   commandCooldownMs = 0,
   onSendRelayCommand
 }: Props) {
@@ -74,6 +91,35 @@ export function DeviceControlPanel({
     return () => clearTimeout(timer);
   }, [pendingCommand, relayOn]);
 
+  useEffect(() => {
+    if (!pendingCommand?.commandId || latestCommand?.commandId !== pendingCommand.commandId) {
+      return;
+    }
+
+    if (latestCommand.status === "delivered") {
+      if (pendingCommand.lifecycleStatus === "delivered") {
+        return;
+      }
+
+      setPendingCommand({
+        ...pendingCommand,
+        lifecycleStatus: "delivered",
+        note: DELIVERED_NOTE
+      });
+      setStatus("queued");
+      setLastAction(`${pendingCommand.action}已送达`);
+      return;
+    }
+
+    if (latestCommand.status === "failed" || latestCommand.status === "timed_out") {
+      setPendingCommand(null);
+      setCooldownRemainingSeconds(0);
+      setStatus("fail");
+      setErrMsg(FAILURE_MESSAGES[latestCommand.status]);
+      setLastAction(`${pendingCommand.action}${latestCommand.status === "timed_out" ? "超时" : "失败"}`);
+    }
+  }, [latestCommand?.commandId, latestCommand?.status, pendingCommand]);
+
   const cooldownSeconds = useMemo(
     () => Math.max(0, Math.ceil(commandCooldownMs / 1000)),
     [commandCooldownMs]
@@ -97,8 +143,10 @@ export function DeviceControlPanel({
         setStatus("queued");
         setLastAction(`${action}已排队`);
         setPendingCommand({
+          commandId: result.commandId,
           targetRelayOn: next,
           action,
+          lifecycleStatus: "queued",
           note: result.note ?? DEFAULT_QUEUED_NOTE
         });
         if (cooldownSeconds > 0) {
@@ -125,10 +173,10 @@ export function DeviceControlPanel({
   const icon = getDeviceIcon(deviceType);
   const buttonText = isBusy
     ? "⏳ 发送中..."
-    : isCoolingDown
-      ? `⏱️ 冷却 ${cooldownRemainingSeconds}s`
-      : isWaitingForAck
-        ? "⏳ 等待确认"
+    : isWaitingForAck
+      ? "⏳ 等待确认"
+      : isCoolingDown
+        ? `⏱️ 冷却 ${cooldownRemainingSeconds}s`
       : relayOn
         ? "🔴 关闭"
         : "🟢 开启";
@@ -138,7 +186,7 @@ export function DeviceControlPanel({
       : status === "ok"
         ? "✅ 已确认"
         : status === "queued"
-          ? "⏳ 已排队"
+          ? pendingCommand?.lifecycleStatus === "delivered" ? "📨 已送达" : "⏳ 已排队"
           : status === "fail"
             ? "❌ 失败"
             : lastAction || "就绪";
