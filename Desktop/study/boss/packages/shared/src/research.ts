@@ -78,7 +78,7 @@ export function parseCompanyResearch(input: ResearchParseInput): CompanyResearch
   const goodRest = matchedKeywords(summary, GOOD_REST_KEYWORDS);
   const badRest = matchedKeywords(summary, BAD_REST_KEYWORDS);
   const annualLeave = matchedKeywords(summary, ANNUAL_LEAVE_KEYWORDS).join('、') || undefined;
-  const warnings = matchedKeywords(summary, WARNING_KEYWORDS);
+  const warnings = matchedWarningKeywords(summary);
   const salary = parseCompensationSalary(summary);
 
   return {
@@ -242,6 +242,31 @@ export function scoreResearchSignal(job: JobPosting, records: CompanyResearchRec
 
 function matchedKeywords(value: string, keywords: string[]): string[] {
   return keywords.filter((keyword) => includesNormalized(value, keyword));
+}
+
+function matchedWarningKeywords(value: string): string[] {
+  return WARNING_KEYWORDS.filter((keyword) => hasNonNegatedKeyword(value, keyword));
+}
+
+function hasNonNegatedKeyword(value: string, keyword: string): boolean {
+  const normalizedValue = normalizeText(value);
+  const normalizedKeyword = normalizeText(keyword);
+  let startIndex = normalizedValue.indexOf(normalizedKeyword);
+
+  while (startIndex >= 0) {
+    if (!isNegatedRiskMention(normalizedValue, startIndex)) return true;
+    startIndex = normalizedValue.indexOf(normalizedKeyword, startIndex + normalizedKeyword.length);
+  }
+
+  return false;
+}
+
+function isNegatedRiskMention(normalizedValue: string, keywordStartIndex: number): boolean {
+  const prefix = normalizedValue.slice(Math.max(0, keywordStartIndex - 16), keywordStartIndex);
+  const suffix = normalizedValue.slice(keywordStartIndex, Math.min(normalizedValue.length, keywordStartIndex + 18));
+  const negationMatch = prefix.match(/(未见|未发现|未出现|未涉及|未提到|未检索到|没有|无|暂无|不存在|未有|不涉及|非|不是|并非)(?!.*(?:但|但是|不过|然而|仍|仍然|却|实际|存在))/);
+  if (negationMatch) return true;
+  return /(风险较低|较少|不明显|无明显|未明确|不多|很少)/.test(suffix);
 }
 
 function summarizeResearchPage(pageText: string, companyName: string, jobTitle?: string): string {

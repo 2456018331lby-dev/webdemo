@@ -275,7 +275,36 @@ describe('company research', () => {
     expect(record.benefits).toEqual(expect.arrayContaining(['五险一金', '餐补', '定期体检']));
     expect(record.restSchedule).toContain('双休');
     expect(record.annualLeave).toContain('年假');
+    expect(record.warnings).toEqual([]);
     expect(coverage.complete).toBe(true);
+  });
+
+  it('does not penalize negated risk mentions from search results', () => {
+    const record = parseCompanyResearch({
+      companyName: '星河科技',
+      jobTitle: '前端工程师',
+      sourceUrl: 'https://www.bing.com/search?q=星河科技%20前端工程师%20员工评价',
+      capturedAt: '2026-06-08T00:00:00.000Z',
+      summary: '员工评价提到周末双休，带薪年假。公开评价未见裁员、欠薪等明显风险，并非外包岗位。'
+    });
+    const coverage = getResearchCoverageForJob(job, [record]);
+    const signal = scoreResearchSignal(job, [record]);
+
+    expect(record.warnings).toEqual([]);
+    expect(coverage.criteria.find((criterion) => criterion.key === 'risk')?.present).toBe(true);
+    expect(signal?.reasons.join('；')).not.toContain('风险：');
+  });
+
+  it('still penalizes risk mentions after a contrast marker', () => {
+    const record = parseCompanyResearch({
+      companyName: '星河科技',
+      jobTitle: '前端工程师',
+      capturedAt: '2026-06-08T00:00:00.000Z',
+      summary: '公开评价未见裁员，但欠薪严重，并存在强制加班。'
+    });
+
+    expect(record.warnings).toEqual(expect.arrayContaining(['欠薪', '强制加班']));
+    expect(scoreResearchSignal(job, [record])?.reasons.join('；')).toContain('风险');
   });
 
   it('penalizes negative external evidence', () => {
