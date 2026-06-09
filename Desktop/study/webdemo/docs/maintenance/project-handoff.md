@@ -49,6 +49,7 @@ Read these first:
 24. 设置中心本机状态刷新收敛：首次加载和备份恢复后刷新改为复用同一个 `refreshLocalStateFromStorage()` 路径，减少 `localStorage` 读取逻辑重复，降低后续新增本机状态项时漏同步风险
 25. CSV 导出安全加固：统一 `toCsv()` 对以 `= + - @` 或控制字符开头的文本单元格添加前导 apostrophe，降低活动日志 / 设备清单导出被表格软件当成公式执行的风险；数字值仍保持数字语义
 26. 设备上行 token 校验：`POST /api/devices/[deviceId]/ingest` 接入可配置 `X-Device-Token` 校验；配置 `SMART_HOME_DEVICE_TOKENS` 后缺失/错误 token 会在解析 payload 和写入状态前被拒绝，production 未配置 token 时返回 `503`
+27. ESP32S3 HTTP 轮询命令下行：新增 `SMART_HOME_COMMAND_DELIVERY=polling` 模式；网页命令只入队并返回 `202`，ESP32S3 使用带 token 的 `GET /api/devices/[deviceId]/commands?pending=true` 拉取 due queued commands，服务端返回后标记为 `delivered`，等待硬件 ack 上行
 
 ### 2026-06-01 生产化基础
 
@@ -91,7 +92,7 @@ Read these first:
 
 | 路由 | 用途 | 调用方 |
 |------|------|--------|
-| `/api/devices/[id]/commands` | 命令 GET/POST | 网页前端 |
+| `/api/devices/[id]/commands` | 命令 GET/POST；`?pending=true` 为 ESP32S3 HTTP 轮询下行 | 网页前端 / ESP32S3 |
 | `/api/devices/[id]/ingest` | 设备上行(ack+遥测) | ESP32S3 |
 | `/api/system/lifecycle-tick` | 全局生命周期轮询 | 定时器 |
 | `/api/homes/snapshot` | 聚合统计 | homes 页面轮询 |
@@ -102,8 +103,8 @@ Read these first:
 用户点击 → POST /api/devices/[id]/commands
   → parseCommandRequest() 校验
   → queueDeviceCommand() 入队
-  → [模拟器] simulateCommandDelivery() — 当前默认
-  → [真实] ESP32S3 下发 → UART → STM32 → ack → POST /api/devices/[id]/ingest
+  → [模拟器] simulateCommandDelivery() — 当前默认 SMART_HOME_COMMAND_DELIVERY=simulator
+  → [真实轮询] SMART_HOME_COMMAND_DELIVERY=polling → ESP32S3 GET /commands?pending=true → 标记 delivered → UART → STM32 → ack → POST /api/devices/[id]/ingest
   → applyAckByCorrelationId() → applyAckPayload() 更新状态
   → 前端收到 state + history
 
@@ -123,11 +124,12 @@ Read these first:
 ## Verification
 
 - `npm run lint`: 通过
-- `node ./node_modules/vitest/vitest.mjs run`: 24 files / 104 tests 全部通过
+- `node ./node_modules/vitest/vitest.mjs run`: 24 files / 107 tests 全部通过
 - `npm run build`: 通过
 - 2026-06-09 设置状态刷新收敛复核：`npm test -- --run apps/web/src/lib/local-app-backup.test.ts apps/web/src/lib/user-preferences.test.ts apps/web/src/lib/notification-inbox.test.ts apps/web/src/lib/push-notifications.test.ts` 通过，随后全量 `npm test -- --run` 23 files / 98 tests 通过；`npm run lint` 和 `npm run build` 通过，build 后已删除 `apps/web/.next/`
 - 2026-06-09 CSV 导出安全复核：`npm test -- --run apps/web/src/lib/export-data.test.ts` 5 tests 通过；随后全量 `npm test -- --run` 23 files / 99 tests 通过；`npm run lint` 和 `npm run build` 通过，build 后已删除 `apps/web/.next/`
 - 2026-06-09 设备上行 token 校验复核：`npm test -- --run apps/web/src/lib/server/device-token-auth.test.ts apps/web/src/app/api/devices/[deviceId]/ingest/route.test.ts` 2 files / 8 tests 通过；随后全量 `npm test -- --run` 24 files / 104 tests 通过；`npm run lint` 和 `npm run build` 通过，build 后已删除 `apps/web/.next/`
+- 2026-06-09 ESP32S3 HTTP 轮询命令下行复核：`npm test -- --run apps/web/src/app/api/devices/[deviceId]/commands/route.test.ts apps/web/src/app/api/devices/[deviceId]/ingest/route.test.ts apps/web/src/lib/server/device-token-auth.test.ts` 3 files / 18 tests 通过；随后全量 `npm test -- --run` 24 files / 107 tests 通过；`npm run lint` 和 `npm run build` 通过，build 后已删除 `apps/web/.next/`
 - Playwright QA:
   - `tests/e2e/prod-shell.spec.ts`: 15 passed
   - 首页 production PWA 资产通过；“优先处理”卡片显示 `1 台设备离线` 并提供“打开总览”CTA

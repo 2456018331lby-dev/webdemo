@@ -9,7 +9,7 @@ type DeviceTokenAuthResult =
       error: string;
     };
 
-export function authenticateDeviceIngest(
+export function authenticateDeviceToken(
   deviceId: string,
   providedToken: string | null,
   env: NodeJS.ProcessEnv = process.env

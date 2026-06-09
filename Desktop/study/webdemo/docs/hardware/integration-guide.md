@@ -120,7 +120,7 @@ STM32 端需要：
 
 ### 4.0 设备认证
 
-`/api/devices/[deviceId]/ingest` 支持 `X-Device-Token` header 校验。
+`/api/devices/[deviceId]/ingest` 和 `GET /api/devices/[deviceId]/commands?pending=true` 支持 `X-Device-Token` header 校验。
 
 后端配置项：
 
@@ -131,11 +131,58 @@ SMART_HOME_DEVICE_TOKENS=device-relay-01=relay-secret,device-sensor-01=sensor-se
 规则：
 - 每一项使用 `deviceId=token`，多设备用逗号或换行分隔
 - 可用 `*=lab-token` 作为实验室通用 token；真实部署建议为每台设备配置独立 token
-- 配置了 `SMART_HOME_DEVICE_TOKENS` 后，ack / telemetry 上报必须携带匹配的 `X-Device-Token`
+- 配置了 `SMART_HOME_DEVICE_TOKENS` 后，ack / telemetry 上报和 pending command 轮询必须携带匹配的 `X-Device-Token`
 - production 环境未配置 `SMART_HOME_DEVICE_TOKENS` 时，ingest 会返回 `503`，避免真实部署时设备上行裸奔
 - dev / test 环境未配置 token 时仍允许本地模拟，方便前端和生命周期测试
 
-### 4.1 Ack 上报
+### 4.1 命令下行轮询
+
+默认本地模式仍是 simulator：
+
+```env
+SMART_HOME_COMMAND_DELIVERY=simulator
+```
+
+要让网页命令等待 ESP32S3 拉取，切换为：
+
+```env
+SMART_HOME_COMMAND_DELIVERY=polling
+```
+
+网页 `POST /api/devices/[deviceId]/commands` 在 polling 模式下只会排队命令并返回 `202`。ESP32S3 每 2 秒轮询：
+
+```
+GET /api/devices/[deviceId]/commands?pending=true
+X-Device-Token: <device-auth-token>
+```
+
+响应示例：
+
+```json
+{
+  "deviceId": "device-relay-01",
+  "polledAt": "2026-05-26T10:00:00Z",
+  "commands": [
+    {
+      "commandId": "cmd_0001",
+      "deviceId": "device-relay-01",
+      "correlationId": "corr-001",
+      "messageType": "command",
+      "commandType": "relay.set",
+      "payload": {
+        "channel": 1,
+        "value": true
+      },
+      "issuedAt": "2026-05-26T10:00:00Z",
+      "attemptCount": 1
+    }
+  ]
+}
+```
+
+服务端返回命令后会把这些命令标记为 `delivered`，避免下一次轮询重复下发；ESP32S3 仍必须在 STM32 执行后通过 ingest 上报 ack。
+
+### 4.2 Ack 上报
 
 ```
 POST /api/devices/[deviceId]/ingest
@@ -156,7 +203,7 @@ X-Device-Token: <device-auth-token>
 }
 ```
 
-### 4.2 遥测上报
+### 4.3 遥测上报
 
 ```
 POST /api/devices/[deviceId]/ingest
@@ -198,7 +245,7 @@ X-Device-Token: <device-auth-token>
 
 ### Step 4: 命令下行（方向：后端→ESP32）
 - 方案 A (MQTT): 后端发布到 smart-home/{deviceId}/commands，ESP32 订阅
-- 方案 B (HTTP 轮询): ESP32 每 2 秒 GET /api/devices/{deviceId}/commands?pending=true
+- 方案 B (HTTP 轮询): 配置 `SMART_HOME_COMMAND_DELIVERY=polling`，ESP32 每 2 秒带 `X-Device-Token` 请求 GET /api/devices/{deviceId}/commands?pending=true
 - MVP 推荐方案 B（简单），后续换 MQTT
 
 ### Step 5: 安全加固

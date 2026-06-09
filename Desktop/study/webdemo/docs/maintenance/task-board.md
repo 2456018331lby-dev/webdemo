@@ -61,6 +61,7 @@ Last updated: `2026-06-09`
 - [x] Vitest 排除 Playwright e2e，单测职责边界修复
 - [x] 首页设备状态 / 命令历史并行读取优化
 - [x] 设备上行 API 可配置 `X-Device-Token` 校验（`SMART_HOME_DEVICE_TOKENS`）
+- [x] ESP32S3 HTTP 轮询命令下行入口（`SMART_HOME_COMMAND_DELIVERY=polling` + `GET /commands?pending=true`）
 - [x] Playwright 覆盖“冷却结束后二次控制”完整交互回归
 - [x] Playwright 覆盖设备收藏持久化与只看收藏筛选
 - [x] Playwright 覆盖活动日志 CSV 与设备列表 JSON 下载
@@ -82,7 +83,7 @@ Last updated: `2026-06-09`
 - [x] 本机备份恢复 helper 单元测试覆盖 schema 校验、恢复计划、坏数据跳过和脱敏订阅不恢复
 - [x] Playwright 覆盖设置中心本机备份上传预览、恢复写回和 Push subscription 保留当前订阅
 - [x] CSV 导出公式注入防护（文本单元格前导危险字符 neutralize，数字值保持数字语义）
-- [x] 所有 104 个测试通过
+- [x] 所有 107 个测试通过
 - [x] GitHub API fallback 已将设置中心本机备份恢复发布到远程 `hermeswork` / `Desktop/study/webdemo/`，MCP 凭据仍待修复
 - [x] 清理 ignored 生成产物与冗长本地 QA 路径记录（`.next` / `output` / `.playwright-mcp` / `test-results` / 旧 SQLite 本地数据）
 - [x] 设置中心状态刷新 refactor 已通过相关本机状态单测、全量 Vitest、lint 和 build
@@ -99,7 +100,7 @@ Last updated: `2026-06-09`
 - [ ] ESP32S3: WiFi 连接 + HTTP POST 上报
 - [ ] ESP32S3: UART 帧编码
 - [ ] STM32H743: UART 中断接收 + GPIO 控制
-- [ ] 命令下行通道（MQTT 或 HTTP 轮询）
+- [ ] ESP32S3: 调用 HTTP 轮询下行并把命令编码到 UART（后端 pending API 已接入）
 - [ ] ESP32S3: 配置并发送 `X-Device-Token`（后端 ingest 校验已接入）
 
 ## Backend

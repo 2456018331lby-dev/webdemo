@@ -4,10 +4,13 @@ import {
   applyLifecyclePolicies,
   getCommandHistory,
   getDeviceState,
+  markCommandDelivered,
   queueDeviceCommand,
   seedDeviceState,
   simulateCommandDelivery
 } from "@/lib/server/device-runtime";
+import type { DeviceCommandRecord } from "@/lib/server/device-backend";
+import { DEVICE_TOKEN_HEADER, authenticateDeviceToken } from "@/lib/server/device-token-auth";
 import { findDevice } from "@/lib/mock-data";
 
 type RouteContext = {
@@ -40,8 +43,45 @@ async function ensureDeviceSeeded(deviceId: string) {
   return await getDeviceState(deviceId);
 }
 
-export async function GET(_request: NextRequest, context: RouteContext) {
+function isPollingDeliveryMode() {
+  return process.env.SMART_HOME_COMMAND_DELIVERY?.trim().toLowerCase() === "polling";
+}
+
+function isPendingPollRequest(request: NextRequest) {
+  return request.nextUrl.searchParams.get("pending") === "true";
+}
+
+function isCommandDue(command: DeviceCommandRecord, now: string) {
+  return (
+    command.status === "queued" &&
+    (!command.nextRetryAt || new Date(command.nextRetryAt).getTime() <= new Date(now).getTime())
+  );
+}
+
+function toHardwareCommand(command: DeviceCommandRecord) {
+  return {
+    commandId: command.commandId,
+    deviceId: command.deviceId,
+    correlationId: command.correlationId,
+    messageType: "command" as const,
+    commandType: command.commandType,
+    payload: command.payload,
+    issuedAt: command.requestedAt,
+    attemptCount: command.attemptCount ?? 1
+  };
+}
+
+export async function GET(request: NextRequest, context: RouteContext) {
   const { deviceId } = await context.params;
+
+  if (isPendingPollRequest(request)) {
+    const auth = authenticateDeviceToken(deviceId, request.headers.get(DEVICE_TOKEN_HEADER));
+
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+  }
+
   const state = await ensureDeviceSeeded(deviceId);
 
   if (!state) {
@@ -50,6 +90,25 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
   // Apply lifecycle policies so timeout / retry states are evaluated on every read
   applyLifecyclePolicies({ now: new Date().toISOString() });
+
+  if (isPendingPollRequest(request)) {
+    const now = new Date().toISOString();
+    const dueCommands = (await getCommandHistory(deviceId))
+      .filter((command) => isCommandDue(command, now))
+      .sort((left, right) => new Date(left.requestedAt).getTime() - new Date(right.requestedAt).getTime());
+
+    for (const command of dueCommands) {
+      markCommandDelivered(deviceId, command.commandId);
+    }
+
+    return NextResponse.json({
+      deviceId,
+      polledAt: now,
+      commands: dueCommands.map(toHardwareCommand),
+      state: await getDeviceState(deviceId),
+      commandHistory: await getCommandHistory(deviceId)
+    });
+  }
 
   return NextResponse.json({
     state: await getDeviceState(deviceId),
@@ -78,6 +137,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
     });
 
     const command = queueDeviceCommand(parsed);
+
+    if (isPollingDeliveryMode()) {
+      return NextResponse.json(
+        {
+          command,
+          state: await getDeviceState(deviceId),
+          commandHistory: await getCommandHistory(deviceId),
+          deliveryMode: "polling"
+        },
+        { status: 202 }
+      );
+    }
+
     const ack = await simulateCommandDelivery(deviceId, command.commandId);
 
     return NextResponse.json({

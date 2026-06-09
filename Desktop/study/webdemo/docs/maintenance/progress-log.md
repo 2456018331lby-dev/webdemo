@@ -1,5 +1,41 @@
 # Progress Log
 
+## 2026-06-09 (ESP32S3 HTTP 轮询命令下行)
+
+### 优化目标
+- 补上硬件链路的下一个明确断点：ESP32S3 需要能从后端拉取待下发命令
+- 保留现有网页本地模拟体验：默认 `SMART_HOME_COMMAND_DELIVERY=simulator` 不变；真实硬件调试时再切到 `polling`
+
+### 代码变更
+- `POST /api/devices/[deviceId]/commands` 新增 `SMART_HOME_COMMAND_DELIVERY=polling` 分支
+- polling 模式下网页命令只入队，返回 `202`、`command`、当前 `state` 和 `commandHistory`，不再立即 `simulateCommandDelivery()`
+- `GET /api/devices/[deviceId]/commands?pending=true` 新增 ESP32S3 轮询出口
+- pending 轮询复用 `X-Device-Token` 校验；配置了 `SMART_HOME_DEVICE_TOKENS` 后缺失/错误 token 返回 `401`
+- 轮询只返回 due 的 `queued` 命令；返回后立即 `markCommandDelivered()`，避免下一轮重复下发；后续状态仍由 ingest ack 更新
+- 返回 payload 对齐硬件文档中的 normalized command：`commandId / deviceId / correlationId / messageType / commandType / payload / issuedAt / attemptCount`
+- token helper 从 `authenticateDeviceIngest` 重命名为 `authenticateDeviceToken`，反映它同时保护 ingest 和 pending command polling
+
+### 文档与配置
+- `.env.example` 新增 `SMART_HOME_COMMAND_DELIVERY=simulator`
+- `docs/hardware/integration-guide.md` 增加 polling 模式配置、pending 命令轮询示例和响应结构
+- `docs/protocols/smart-home-mvp-device-contract.md` 增加 HTTP pending command polling 入口说明
+- `task-board.md` 保留 ESP32S3 固件侧待办：后端 pending API 已接入，但 ESP32S3 仍需实际轮询、UART 编码和 ack 上报
+
+### 验证
+- 先补失败用例：polling delivery mode 下 POST 仍返回 200 并模拟 ack，pending=true 仍没有 `commands`，缺失 token 也未拒绝；随后实现并转绿
+- `npm test -- --run apps/web/src/app/api/devices/[deviceId]/commands/route.test.ts`：1 file / 10 tests 通过
+- `npm test -- --run apps/web/src/app/api/devices/[deviceId]/commands/route.test.ts apps/web/src/app/api/devices/[deviceId]/ingest/route.test.ts apps/web/src/lib/server/device-token-auth.test.ts`：3 files / 18 tests 通过
+- `npm run lint`：通过
+- `npm test -- --run`：24 files / 107 tests 通过
+- `npm run build`：通过
+- build 后已删除 `apps/web/.next/`，当前未保留新的测试截图、trace 或构建输出
+
+### GitHub 状态
+- 本轮仍按约定优先尝试 GitHub MCP；若继续返回 `Bad credentials`，使用 GitHub CLI Git Data API fallback 非强推发布
+- 实际提交哈希以 Git history 和最终发布回执为准，避免在同一提交内写入会自我失效的哈希
+
+---
+
 ## 2026-06-09 (设备上行 token 校验)
 
 ### 优化目标

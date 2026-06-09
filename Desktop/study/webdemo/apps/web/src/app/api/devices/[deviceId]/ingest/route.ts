@@ -7,7 +7,7 @@ import {
   getDeviceState,
   seedDeviceState
 } from "@/lib/server/device-runtime";
-import { DEVICE_TOKEN_HEADER, authenticateDeviceIngest } from "@/lib/server/device-token-auth";
+import { DEVICE_TOKEN_HEADER, authenticateDeviceToken } from "@/lib/server/device-token-auth";
 
 type RouteContext = {
   params: Promise<{
@@ -22,7 +22,7 @@ type RouteContext = {
  */
 export async function POST(request: NextRequest, context: RouteContext) {
   const { deviceId } = await context.params;
-  const auth = authenticateDeviceIngest(deviceId, request.headers.get(DEVICE_TOKEN_HEADER));
+  const auth = authenticateDeviceToken(deviceId, request.headers.get(DEVICE_TOKEN_HEADER));
 
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });

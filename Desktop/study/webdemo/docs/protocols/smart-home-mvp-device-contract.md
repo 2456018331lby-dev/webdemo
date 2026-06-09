@@ -56,6 +56,15 @@ Every command must include:
 
 ## Backend To ESP32 Normalized Payload
 
+HTTP 轮询入口：
+
+```text
+GET /api/devices/{deviceId}/commands?pending=true
+X-Device-Token: <device_token>
+```
+
+返回的 `commands[]` 使用以下 normalized payload。服务端返回后会把对应命令标记为 `delivered`，ESP32S3 执行后必须用相同 `correlationId` 上报 ack。
+
 ```json
 {
   "commandId": "cmd_0001",
