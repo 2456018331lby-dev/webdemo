@@ -48,6 +48,7 @@ Last updated: `2026-06-09`
 - [x] 离线恢复面板（网络状态检测、恢复动作、日志入口、读屏 status）
 - [x] 离线页 PWA 安装提示 compact 化，避免移动端遮挡恢复动作
 - [x] 设置中心本机数据备份导出卡片（偏好/收藏/筛选视图/通知队列/推送摘要）
+- [x] 设置中心本机备份恢复预览与安全恢复（覆盖预览 / 脱敏订阅跳过 / 移动端适配）
 
 ### 数据/测试
 - [x] 中文化 mock 数据
@@ -76,7 +77,9 @@ Last updated: `2026-06-09`
 - [x] Playwright 覆盖离线恢复状态和恢复面板动作
 - [x] 本机备份 helper 单元测试覆盖已知状态收集、日期文件名和 Push subscription 脱敏
 - [x] Playwright 覆盖设置中心本机备份下载和敏感字段不落盘
-- [x] 所有 96 个测试通过
+- [x] 本机备份恢复 helper 单元测试覆盖 schema 校验、恢复计划、坏数据跳过和脱敏订阅不恢复
+- [x] Playwright 覆盖设置中心本机备份上传预览、恢复写回和 Push subscription 保留当前订阅
+- [x] 所有 98 个测试通过
 - [x] GitHub API fallback 已将设置中心本机备份导出发布到远程 `hermeswork` / `Desktop/study/webdemo/`，MCP 凭据仍待修复
 
 ## Android / App Packaging
@@ -106,7 +109,7 @@ Last updated: `2026-06-09`
 - [ ] 将 Push subscription endpoint 保存到用户账号或 Supabase 后端
 - [ ] 用真实后端同步状态替换本机推送同步快照
 - [ ] 将通知收件箱 / 投递历史同步到用户账号或 Supabase 后端
-- [ ] 为本机备份设计导入/恢复流程，明确 schema 校验、冲突处理和 Push subscription 不可恢复字段
+- [ ] 将本机备份恢复扩展到 Supabase 迁移映射、逐项勾选和账号级冲突处理
 - [ ] 创建服务端推送发送 API / 定时任务，完成真实 Web Push 投递 smoke test
 
 ## Deferred

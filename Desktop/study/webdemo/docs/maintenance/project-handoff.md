@@ -44,6 +44,7 @@ Read these first:
 19. 离线恢复面板：`/offline` 从静态兜底页升级为可操作恢复面板，检测浏览器在线状态、监听 `online/offline` 事件，并通过 `role="status"` 公告“网络已恢复 / 仍处于离线状态”
 20. 离线页移动端兜底优化：`/offline` 使用双栏恢复布局，移动端自动单列；PWA 安装提示在离线路由压缩为 compact 形态，保留安装入口但不遮挡“回到控制台 / 查看最近日志”恢复动作
 21. 设置中心本机备份导出：`/settings` 新增本机操作状态 JSON 备份卡片，汇总偏好、收藏、筛选视图、通知队列和推送同步快照；Push subscription 只导出端点指纹和 key 存在状态，不导出 endpoint / p256dh / auth 原文
+22. 设置中心本机备份恢复：`/settings` 支持选择备份 JSON、预览可恢复/覆盖/跳过项，并只写回非敏感本机状态；Push subscription 脱敏摘要明确跳过，避免误恢复浏览器推送密钥
 
 ### 2026-06-01 生产化基础
 
@@ -79,7 +80,7 @@ Read these first:
 | `/devices` | 设备列表 + 收藏 + 筛选视图保存 |
 | `/devices/[id]` | 设备详情 + 控制面板 |
 | `/activity` | 活动日志 + 当前筛选结果导出 |
-| `/settings` | 用户偏好 / 通知策略 / 设备维护 |
+| `/settings` | 用户偏好 / 通知策略 / 本机备份导出恢复 / 设备维护 |
 | `/offline` | PWA 离线兜底 + 网络恢复检查 |
 
 ### API 路由
@@ -118,10 +119,10 @@ Read these first:
 ## Verification
 
 - `npm run lint`: 通过
-- `node ./node_modules/vitest/vitest.mjs run`: 23 files / 96 tests 全部通过
+- `node ./node_modules/vitest/vitest.mjs run`: 23 files / 98 tests 全部通过
 - `npm run build`: 通过
 - Playwright QA:
-  - `tests/e2e/prod-shell.spec.ts`: 14 passed
+  - `tests/e2e/prod-shell.spec.ts`: 15 passed
   - 首页 production PWA 资产通过；“优先处理”卡片显示 `1 台设备离线` 并提供“打开总览”CTA
   - `/offline` 通过：离线兜底页显示恢复状态，在线浏览器下 `role="status"` 提示“网络已恢复”，并提供“回到控制台 / 查看最近日志”动作
   - `/homes` 手动刷新快照通过：mock 聚合 API 更新到 `QA 复核空间`，最近更新时间、超时徽标、无横向溢出和 hero 几何未偏移均通过
@@ -140,6 +141,7 @@ Read these first:
   - `/settings` 通知筛选视图通过：保存未读 + 搜索“空气” + 设备筛选后刷新自动恢复；清除保存会移除本机视图记录
   - `/settings` 推送订阅同步通过：无同步快照时提示端点待同步；记录快照后显示有效；订阅超过 30 天后提示重新订阅
   - `/settings` 本机备份导出通过：下载文件名 `smart-home-local-state-YYYY-MM-DD.json`，JSON 包含本机偏好/收藏等已知状态项，Push subscription 条目被标记为 `redacted`，且不包含 endpoint / p256dh / auth 原文
+  - `/settings` 本机备份恢复通过：上传备份后预览可恢复/覆盖/跳过项；恢复后偏好和收藏写回，Push subscription 保留当前浏览器订阅且不会被脱敏摘要覆盖
 - Rendered interaction QA (Playwright fallback):
   - Browser 插件已安装，但当前会话没有暴露其要求的 Node 控制面工具，因此按前端测试技能回退到 Playwright MCP
   - `/devices/device-relay-01` 桌面端点击继电器控制后出现 `冷却 2s`，按钮禁用，冷却提示可见
@@ -160,6 +162,7 @@ Read these first:
   - 通知筛选视图 smoke：保存视图恢复后桌面 `scrollWidth=1280`、移动端 `scrollWidth=393`；保存视图栏和操作按钮均未越界
   - 推送订阅同步 smoke：记录同步快照后桌面 `scrollWidth=1280`、移动端陈旧订阅 `scrollWidth=393`；同步面板和操作按钮均未越界
   - 设置中心本机备份 smoke：`/settings` 桌面约 `1280x900`、移动端 `393x852` 均无横向溢出；备份卡片按钮可触发下载状态提示，移动端按钮和三项指标单列收拢
+  - 设置中心本机备份恢复 smoke：桌面 `1366x900` 恢复预览 `scrollWidth=1366`；移动端 `393x852` 恢复面板宽 319px、恢复按钮宽 285px、恢复项均在视口内；恢复后默认入口/密度和收藏状态同步，Push subscription endpoint 未被备份覆盖
   - Console errors / page errors: 0
 
 ## Browser QA evidence
@@ -208,6 +211,7 @@ Read these first:
   - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-push-sync-desktop.png`
   - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-push-sync-mobile.png`
   - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-local-backup-chromium.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-local-backup-restore-chromium.png`
   - `C:\Users\24560\AppData\Local\Temp\webdemo-settings-local-backup-desktop.png` (`/settings` 本机备份桌面 QA, ignored temp evidence)
   - `C:\Users\24560\AppData\Local\Temp\webdemo-settings-local-backup-mobile.png` (`/settings` 本机备份移动端 QA, ignored temp evidence)
 
@@ -238,7 +242,7 @@ Read these first:
 6. 配置 Web Push VAPID 公钥，并把 PWA push subscription endpoint 保存到账号或 Supabase 后端
 7. 将本机用户偏好、通知策略和通知收件箱接入账号或 Supabase 后端同步
 8. 用真实后端同步状态替换当前本机 push subscription 同步快照，并保留端点变更/过期/陈旧重订阅提示
-9. 为本机备份设计导入/恢复流程，先定义冲突处理、schema 校验和 Push subscription 不可恢复边界
+9. 将本机备份恢复扩展为更细的迁移工具：逐项勾选、恢复前自动导出现状、Supabase 字段映射和账号级冲突处理
 
 ## GitHub 推送说明
 

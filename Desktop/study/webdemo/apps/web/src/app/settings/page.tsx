@@ -51,10 +51,14 @@ import {
   getDeviceTypeLabel as getExportDeviceTypeLabel
 } from "@/lib/export-data";
 import {
+  applyLocalAppBackupRestorePlan,
   buildLocalAppBackup,
+  createLocalAppBackupRestorePlan,
   getLocalAppBackupFilename,
   localAppBackupItems,
-  serializeLocalAppBackup
+  parseLocalAppBackupText,
+  serializeLocalAppBackup,
+  type LocalAppBackupRestorePlan
 } from "@/lib/local-app-backup";
 import {
   PUSH_SUBSCRIPTION_STORAGE_KEY,
@@ -245,6 +249,30 @@ function getDeviceTypeLabel(type: string): string {
   }
 }
 
+function getLocalBackupRestoreStatusLabel(status: string): string {
+  switch (status) {
+    case "restore": return "新增";
+    case "overwrite": return "覆盖";
+    case "missing": return "缺失";
+    case "redacted": return "脱敏跳过";
+    case "invalid": return "无效";
+    case "unknown": return "未知";
+    default: return status;
+  }
+}
+
+function getLocalBackupRestoreStatusTone(status: string): string {
+  switch (status) {
+    case "restore": return "success";
+    case "overwrite": return "warning";
+    case "missing":
+    case "redacted": return "info";
+    case "invalid":
+    case "unknown": return "danger";
+    default: return "info";
+  }
+}
+
 function formatLastSeen(timestamp: string): string {
   const date = new Date(timestamp);
   const now = new Date();
@@ -288,9 +316,12 @@ export default function SettingsPage() {
     defaultNotificationInboxAdvancedFilters
   );
   const [savedNotificationView, setSavedNotificationView] = useState<NotificationInboxViewState | null>(null);
+  const [localBackupRestorePlan, setLocalBackupRestorePlan] = useState<LocalAppBackupRestorePlan | null>(null);
+  const [localBackupFileName, setLocalBackupFileName] = useState<string | null>(null);
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>(defaultUserPreferences);
   const hasSkippedInitialPreferenceSave = useRef(false);
+  const localBackupInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const restoredNotificationView = parseNotificationInboxView(
@@ -407,6 +438,77 @@ export default function SettingsPage() {
     showOperationResult(
       `已导出本机数据备份（${backup.summary.presentCount}/${backup.summary.totalCount} 项）`
     );
+  }
+
+  async function handleSelectLocalBackupFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = input.files?.[0] ?? null;
+    input.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const backup = parseLocalAppBackupText(await file.text());
+
+      if (!backup) {
+        setLocalBackupRestorePlan(null);
+        setLocalBackupFileName(null);
+        showOperationResult("备份文件格式不符合当前版本 schema", 4200);
+        return;
+      }
+
+      const plan = createLocalAppBackupRestorePlan(window.localStorage, backup);
+      setLocalBackupRestorePlan(plan);
+      setLocalBackupFileName(file.name);
+      showOperationResult(
+        `已读取备份：可恢复 ${plan.summary.restorableCount} 项，跳过 ${plan.summary.skippedCount} 项`,
+        4200
+      );
+    } catch {
+      setLocalBackupRestorePlan(null);
+      setLocalBackupFileName(null);
+      showOperationResult("读取备份文件失败，请重新选择 JSON 文件", 4200);
+    }
+  }
+
+  function handleApplyLocalBackupRestore() {
+    if (!localBackupRestorePlan) {
+      showOperationResult("请先选择本机备份文件");
+      return;
+    }
+
+    const restoredCount = applyLocalAppBackupRestorePlan(window.localStorage, localBackupRestorePlan);
+    refreshLocalStateFromStorage();
+    setLocalBackupRestorePlan(null);
+    setLocalBackupFileName(null);
+    showOperationResult(`已恢复 ${restoredCount} 项本机状态，脱敏订阅已跳过`, 4200);
+  }
+
+  function handleClearLocalBackupRestorePlan() {
+    setLocalBackupRestorePlan(null);
+    setLocalBackupFileName(null);
+  }
+
+  function refreshLocalStateFromStorage() {
+    const restoredNotificationView = parseNotificationInboxView(
+      window.localStorage.getItem(NOTIFICATION_INBOX_VIEW_STORAGE_KEY)
+    );
+
+    setPreferences(parseUserPreferences(window.localStorage.getItem(USER_PREFERENCES_STORAGE_KEY)));
+    setNotificationItems(parseNotificationInbox(window.localStorage.getItem(NOTIFICATION_INBOX_STORAGE_KEY)));
+    setSavedNotificationView(restoredNotificationView);
+
+    if (restoredNotificationView) {
+      setNotificationFilter(restoredNotificationView.filter);
+      setNotificationAdvancedFilters(restoredNotificationView.advancedFilters);
+    } else {
+      setNotificationFilter("all");
+      setNotificationAdvancedFilters(defaultNotificationInboxAdvancedFilters);
+    }
+
+    setPushSyncRecord(parsePushSubscriptionSyncRecord(window.localStorage.getItem(PUSH_SUBSCRIPTION_SYNC_STORAGE_KEY)));
   }
 
   function persistNotificationInbox(nextItems: NotificationInboxItem[]) {
@@ -942,14 +1044,27 @@ export default function SettingsPage() {
               <span>⇩</span>
               <span>本机备份</span>
             </div>
-            <h2 className="card-title card-title--md">导出本机操作状态</h2>
+            <h2 className="card-title card-title--md">导出与恢复本机操作状态</h2>
             <p className="card-subtitle">
-              生成一份 JSON 快照，包含本机偏好、收藏、筛选视图和通知队列；推送订阅只导出脱敏摘要。
+              生成或恢复 JSON 快照，包含本机偏好、收藏、筛选视图和通知队列；推送订阅只导出脱敏摘要且不会恢复密钥。
             </p>
           </div>
-          <button className="btn btn-primary" onClick={handleExportLocalBackup}>
-            导出本机备份
-          </button>
+          <div className="local-backup-actions">
+            <button className="btn btn-primary" onClick={handleExportLocalBackup}>
+              导出本机备份
+            </button>
+            <button className="btn btn-secondary" onClick={() => localBackupInputRef.current?.click()}>
+              选择备份文件
+            </button>
+          </div>
+          <input
+            ref={localBackupInputRef}
+            className="visually-hidden"
+            type="file"
+            accept="application/json,.json"
+            aria-label="选择本机备份 JSON 文件"
+            onChange={handleSelectLocalBackupFile}
+          />
         </div>
 
         <div className="local-backup-metrics">
@@ -969,6 +1084,54 @@ export default function SettingsPage() {
             <small>对接 Supabase 前核对</small>
           </div>
         </div>
+
+        {localBackupRestorePlan && (
+          <div className="local-backup-restore-panel" aria-live="polite">
+            <div className="local-backup-restore-head">
+              <div>
+                <span>待恢复备份</span>
+                <strong>{localBackupFileName ?? "未命名备份"}</strong>
+                <small>
+                  生成时间：
+                  {new Date(localBackupRestorePlan.backup.generatedAt).toLocaleString("zh-CN")}
+                </small>
+              </div>
+              <div className="local-backup-restore-actions">
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={handleApplyLocalBackupRestore}
+                  disabled={localBackupRestorePlan.summary.restorableCount === 0}
+                >
+                  恢复可恢复项
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={handleClearLocalBackupRestorePlan}>
+                  取消
+                </button>
+              </div>
+            </div>
+
+            <div className="local-backup-restore-summary">
+              <span>可恢复 {localBackupRestorePlan.summary.restorableCount} 项</span>
+              <span>覆盖 {localBackupRestorePlan.summary.overwriteCount} 项</span>
+              <span>跳过 {localBackupRestorePlan.summary.skippedCount} 项</span>
+            </div>
+
+            <div className="local-backup-restore-list">
+              {localBackupRestorePlan.items.map((item) => (
+                <div key={item.key} className="local-backup-restore-item">
+                  <div>
+                    <strong>{item.label}</strong>
+                    <small>{item.key}</small>
+                    <span>{item.reason}</span>
+                  </div>
+                  <b data-tone={getLocalBackupRestoreStatusTone(item.status)}>
+                    {getLocalBackupRestoreStatusLabel(item.status)}
+                  </b>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="card notification-inbox-card animate-fade-in-up delay-4">

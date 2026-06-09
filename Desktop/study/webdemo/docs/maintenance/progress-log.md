@@ -1,5 +1,47 @@
 # Progress Log
 
+## 2026-06-09 (设置中心本机备份恢复预览)
+
+### 本机恢复逻辑
+- `apps/web/src/lib/local-app-backup.ts` 增加备份文本解析、schema 校验、恢复计划生成和计划应用
+- 恢复计划按状态拆分为 `restore / overwrite / missing / redacted / invalid / unknown`
+- 实际写回只允许 `restore` 和 `overwrite` 的非敏感 JSON 状态；缺失项不删除当前本机状态
+- Push subscription 原始订阅始终跳过，只允许保留当前浏览器订阅，避免把脱敏摘要误当成可恢复密钥
+- 坏 JSON、旧 schema 和导出时已标记 `parseError` 的条目会被拒绝或跳过
+
+### 设置中心 UI
+- `/settings` 的本机备份卡片升级为“导出与恢复本机操作状态”
+- 新增隐藏文件输入和“选择备份文件”动作，读取 JSON 后展示恢复预览
+- 预览展示备份文件名、生成时间、可恢复/覆盖/跳过数量，以及每个状态项的恢复原因
+- 点击“恢复可恢复项”后立即同步当前页面的偏好、通知队列、通知筛选视图和推送同步快照状态
+- 移动端恢复预览自动单列，长文件名和 storage key 使用换行保护，避免 393px 视口横向溢出
+
+### 测试与验证
+- `npm test -- --run apps/web/src/lib/local-app-backup.test.ts`：4 个测试通过，覆盖备份解析、恢复计划、Push subscription 跳过和坏数据拒绝
+- `npm run lint`：通过
+- `npm test`：23 个文件 / 98 个测试全部通过
+- `npm run build`：通过，`/settings` page size 约 17.6 kB
+- `npx playwright test --reporter=list`：15 个 production e2e 测试通过
+- 新增 e2e 覆盖：
+  - `/settings` 上传本机备份 JSON 后显示恢复预览
+  - 断言可恢复 2 项、覆盖 1 项、跳过 1 项，并显示 Push subscription “脱敏跳过”
+  - 点击恢复后 UI 默认入口/密度同步为备份值
+  - 断言本机收藏写入，同时当前浏览器 Push subscription endpoint 没有被备份摘要覆盖
+- Playwright MCP 手动渲染验证：
+  - Browser Node 控制路径未暴露；本轮按前端测试约定回退到 Playwright MCP
+  - `/settings` 桌面 `1366x900`：恢复预览可见，`scrollWidth=1366`，无 Next.js overlay
+  - 点击恢复后 `role="status"` 显示“已恢复 2 项本机状态”，默认入口为 `devices`，密度为 `compact`，Push subscription 仍保留当前浏览器 endpoint
+  - `/settings` 移动端 `393x852`：`scrollWidth=393`，恢复面板宽 319px，恢复按钮宽 285px，三条恢复项均在视口内
+  - Console errors / page errors: 0
+- 截图证据：
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-local-backup-restore-chromium.png`
+
+### GitHub 状态
+- 本轮本地 commit 和 GitHub 发布将在维护文档更新后执行
+- 仍会按用户要求优先尝试 GitHub MCP；若继续返回 `Bad credentials`，使用 GitHub CLI Git Data API fallback 发布到远程默认分支 `hermeswork` 的 `Desktop/study/webdemo/` 子树
+
+---
+
 ## 2026-06-09 (设置中心本机备份导出)
 
 ### 本机备份逻辑

@@ -594,7 +594,7 @@ test("settings page exports a redacted local app backup", async ({ page }, testI
   });
   await page.reload({ waitUntil: "networkidle" });
 
-  await expect(page.getByRole("heading", { name: "导出本机操作状态" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "导出与恢复本机操作状态" })).toBeVisible();
 
   const backupDownloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "导出本机备份" }).click();
@@ -637,6 +637,124 @@ test("settings page exports a redacted local app backup", async ({ page }, testI
 
   await safeScreenshot(page, {
     path: `output/qa-settings-local-backup-${testInfo.project.name || "chromium"}.png`,
+    fullPage: false
+  });
+
+  expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
+  expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
+});
+
+test("settings page previews and restores a local app backup", async ({ page }, testInfo) => {
+  const collected = collectBrowserErrors(page);
+
+  await mockNotificationPermission(page, "granted");
+  await page.goto("/settings");
+  await page.evaluate(() => {
+    window.localStorage.setItem(
+      "smart-home-user-preferences-v1",
+      JSON.stringify({
+        schemaVersion: 1,
+        defaultLanding: "settings",
+        dashboardDensity: "comfortable"
+      })
+    );
+    window.localStorage.removeItem("smart-home-device-favorites-v1");
+    window.localStorage.setItem(
+      "smart-home-push-subscription-v1",
+      JSON.stringify({
+        schemaVersion: 1,
+        endpoint: "https://push.example/subscriptions/current-browser-subscription",
+        createdAt: "2026-06-09T01:00:00.000Z",
+        expirationTime: null,
+        keys: {
+          p256dh: "current-public-key",
+          auth: "current-auth-secret"
+        }
+      })
+    );
+  });
+  await page.reload({ waitUntil: "networkidle" });
+
+  const backup = {
+    schemaVersion: 1,
+    app: "smart-home-web",
+    generatedAt: "2026-06-09T04:15:00.000Z",
+    entries: [
+      {
+        key: "smart-home-user-preferences-v1",
+        label: "本机偏好",
+        present: true,
+        rawLength: 96,
+        value: {
+          schemaVersion: 1,
+          defaultLanding: "devices",
+          dashboardDensity: "compact"
+        }
+      },
+      {
+        key: "smart-home-device-favorites-v1",
+        label: "收藏设备",
+        present: true,
+        rawLength: 20,
+        value: ["device-relay-01"]
+      },
+      {
+        key: "smart-home-push-subscription-v1",
+        label: "推送订阅摘要",
+        present: true,
+        redacted: true,
+        rawLength: 260,
+        value: {
+          endpointFingerprint: "psh-restore-demo",
+          hasAuthKey: true,
+          hasP256dhKey: true
+        }
+      }
+    ],
+    summary: {
+      totalCount: 3,
+      presentCount: 3,
+      missingCount: 0,
+      redactedCount: 1
+    }
+  };
+
+  await page.getByLabel("选择本机备份 JSON 文件").setInputFiles({
+    name: "smart-home-local-state-2026-06-09.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(backup))
+  });
+
+  const restorePanel = page.locator(".local-backup-restore-panel");
+  await expect(restorePanel.getByText("待恢复备份")).toBeVisible();
+  await expect(restorePanel.getByText("可恢复 2 项", { exact: true })).toBeVisible();
+  await expect(restorePanel.getByText("覆盖 1 项", { exact: true })).toBeVisible();
+  await expect(restorePanel.getByText("跳过 1 项", { exact: true })).toBeVisible();
+  await expect(restorePanel.getByText("脱敏跳过", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "恢复可恢复项" }).click();
+  await expect(page.getByRole("status")).toContainText("已恢复 2 项本机状态");
+  await expect(page.getByLabel("默认入口")).toHaveValue("devices");
+  await expect(page.getByLabel("控制台密度")).toHaveValue("compact");
+
+  const restored = await page.evaluate(() => ({
+    preferences: JSON.parse(window.localStorage.getItem("smart-home-user-preferences-v1") ?? "{}"),
+    favorites: JSON.parse(window.localStorage.getItem("smart-home-device-favorites-v1") ?? "[]"),
+    pushSubscription: window.localStorage.getItem("smart-home-push-subscription-v1")
+  }));
+
+  expect(restored.preferences).toEqual(
+    expect.objectContaining({
+      defaultLanding: "devices",
+      dashboardDensity: "compact"
+    })
+  );
+  expect(restored.favorites).toEqual(["device-relay-01"]);
+  expect(restored.pushSubscription).toContain("current-browser-subscription");
+  expect(restored.pushSubscription).not.toContain("psh-restore-demo");
+
+  await safeScreenshot(page, {
+    path: `output/qa-settings-local-backup-restore-${testInfo.project.name || "chromium"}.png`,
     fullPage: false
   });
 
