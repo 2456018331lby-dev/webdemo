@@ -1,5 +1,19 @@
 # Progress Log
 
+## 2026-06-09 (维护文档旧交接稿清理)
+
+### 清理范围
+- 删除 `docs/maintenance/next-agent-prompt.md`：该文件是早期跨会话提示稿，只自引用且不在当前维护文档契约中
+- 保留现有 `.test.*` 与 `tests/e2e`：这些测试仍覆盖命令、ingest、导出、PWA、设置和硬件接入边界，不属于可丢弃垃圾文件
+- 保留 ignored 的 `.omx/` 与 `node_modules/`：前者是运行态/会话状态，后者是依赖目录；二者未进入 Git 跟踪
+
+### 验证
+- `Get-ChildItem docs/maintenance`：目录内只剩 `README.md`、`project-handoff.md`、`progress-log.md`、`task-board.md`
+- 可疑产物目录检查未发现 `.next`、`coverage`、`playwright-report`、`test-results`、`.turbo`、`.cache` 或 `out`
+- `git status --short --ignored`：除本次文档删除外，仅 `.omx/` 与 `node_modules/` 为 ignored 目录
+
+---
+
 ## 2026-06-09 (ESP32S3 HTTP 轮询命令下行)
 
 ### 优化目标

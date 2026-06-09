@@ -50,6 +50,7 @@ Read these first:
 25. CSV 导出安全加固：统一 `toCsv()` 对以 `= + - @` 或控制字符开头的文本单元格添加前导 apostrophe，降低活动日志 / 设备清单导出被表格软件当成公式执行的风险；数字值仍保持数字语义
 26. 设备上行 token 校验：`POST /api/devices/[deviceId]/ingest` 接入可配置 `X-Device-Token` 校验；配置 `SMART_HOME_DEVICE_TOKENS` 后缺失/错误 token 会在解析 payload 和写入状态前被拒绝，production 未配置 token 时返回 `503`
 27. ESP32S3 HTTP 轮询命令下行：新增 `SMART_HOME_COMMAND_DELIVERY=polling` 模式；网页命令只入队并返回 `202`，ESP32S3 使用带 token 的 `GET /api/devices/[deviceId]/commands?pending=true` 拉取 due queued commands，服务端返回后标记为 `delivered`，等待硬件 ack 上行
+28. 维护文档去冗余：删除过时的 `docs/maintenance/next-agent-prompt.md` 旧交接稿；当前维护入口仅保留 `project-handoff.md`、`progress-log.md`、`task-board.md` 和 `README.md`，回归测试继续保留用于保护现有行为
 
 ### 2026-06-01 生产化基础
 
@@ -130,6 +131,7 @@ Read these first:
 - 2026-06-09 CSV 导出安全复核：`npm test -- --run apps/web/src/lib/export-data.test.ts` 5 tests 通过；随后全量 `npm test -- --run` 23 files / 99 tests 通过；`npm run lint` 和 `npm run build` 通过，build 后已删除 `apps/web/.next/`
 - 2026-06-09 设备上行 token 校验复核：`npm test -- --run apps/web/src/lib/server/device-token-auth.test.ts apps/web/src/app/api/devices/[deviceId]/ingest/route.test.ts` 2 files / 8 tests 通过；随后全量 `npm test -- --run` 24 files / 104 tests 通过；`npm run lint` 和 `npm run build` 通过，build 后已删除 `apps/web/.next/`
 - 2026-06-09 ESP32S3 HTTP 轮询命令下行复核：`npm test -- --run apps/web/src/app/api/devices/[deviceId]/commands/route.test.ts apps/web/src/app/api/devices/[deviceId]/ingest/route.test.ts apps/web/src/lib/server/device-token-auth.test.ts` 3 files / 18 tests 通过；随后全量 `npm test -- --run` 24 files / 107 tests 通过；`npm run lint` 和 `npm run build` 通过，build 后已删除 `apps/web/.next/`
+- 2026-06-09 维护文档去冗余复核：`Get-ChildItem docs/maintenance` 不再包含 `next-agent-prompt.md`；未发现 `.next` / `coverage` / `playwright-report` / `test-results` 等生成产物目录；`git status --short --ignored` 仅显示本次文档改动和 ignored 的 `.omx/` / `node_modules/`
 - Playwright QA:
   - `tests/e2e/prod-shell.spec.ts`: 15 passed
   - 首页 production PWA 资产通过；“优先处理”卡片显示 `1 台设备离线` 并提供“打开总览”CTA

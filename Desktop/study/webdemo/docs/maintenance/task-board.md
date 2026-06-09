@@ -86,6 +86,7 @@ Last updated: `2026-06-09`
 - [x] 所有 107 个测试通过
 - [x] GitHub API fallback 已将设置中心本机备份恢复发布到远程 `hermeswork` / `Desktop/study/webdemo/`，MCP 凭据仍待修复
 - [x] 清理 ignored 生成产物与冗长本地 QA 路径记录（`.next` / `output` / `.playwright-mcp` / `test-results` / 旧 SQLite 本地数据）
+- [x] 删除过时维护交接稿 `docs/maintenance/next-agent-prompt.md`；当前维护入口收敛到 README + handoff/progress/task-board
 - [x] 设置中心状态刷新 refactor 已通过相关本机状态单测、全量 Vitest、lint 和 build
 
 ## Android / App Packaging
