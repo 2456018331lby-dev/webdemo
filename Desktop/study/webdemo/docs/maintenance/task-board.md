@@ -47,6 +47,7 @@ Last updated: `2026-06-09`
 - [x] 首页 hero 操作按钮移动端布局收敛
 - [x] 离线恢复面板（网络状态检测、恢复动作、日志入口、读屏 status）
 - [x] 离线页 PWA 安装提示 compact 化，避免移动端遮挡恢复动作
+- [x] 设置中心本机数据备份导出卡片（偏好/收藏/筛选视图/通知队列/推送摘要）
 
 ### 数据/测试
 - [x] 中文化 mock 数据
@@ -73,7 +74,9 @@ Last updated: `2026-06-09`
 - [x] 首页摘要模型单元测试覆盖运行态统计、房间焦点和稳定态 action
 - [x] OfflineRecoveryPanel 单元测试覆盖离线重试态和在线恢复态
 - [x] Playwright 覆盖离线恢复状态和恢复面板动作
-- [x] 所有 94 个测试通过
+- [x] 本机备份 helper 单元测试覆盖已知状态收集、日期文件名和 Push subscription 脱敏
+- [x] Playwright 覆盖设置中心本机备份下载和敏感字段不落盘
+- [x] 所有 96 个测试通过
 - [x] GitHub API fallback 已将当前 webdemo tracked tree 同步到远程 `hermeswork` / `Desktop/study/webdemo/`
 
 ## Android / App Packaging
@@ -103,6 +106,7 @@ Last updated: `2026-06-09`
 - [ ] 将 Push subscription endpoint 保存到用户账号或 Supabase 后端
 - [ ] 用真实后端同步状态替换本机推送同步快照
 - [ ] 将通知收件箱 / 投递历史同步到用户账号或 Supabase 后端
+- [ ] 为本机备份设计导入/恢复流程，明确 schema 校验、冲突处理和 Push subscription 不可恢复字段
 - [ ] 创建服务端推送发送 API / 定时任务，完成真实 Web Push 投递 smoke test
 
 ## Deferred

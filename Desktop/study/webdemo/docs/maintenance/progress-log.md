@@ -1,5 +1,45 @@
 # Progress Log
 
+## 2026-06-09 (设置中心本机备份导出)
+
+### 本机备份逻辑
+- 新增 `apps/web/src/lib/local-app-backup.ts`，统一枚举当前本机已知 `localStorage` 状态项
+- 备份内容覆盖用户偏好、设备收藏、设备/活动日志/通知筛选视图、通知收件箱、推送同步快照和 Push subscription 摘要
+- Push subscription 使用脱敏读取路径，只导出 schema、创建时间、过期时间、端点指纹和 key 是否存在，不导出 endpoint / p256dh / auth 原文
+- 文件名复用导出 helper，生成 `smart-home-local-state-YYYY-MM-DD.json`
+
+### 设置中心 UI
+- `/settings` 新增“导出本机操作状态”卡片，说明备份范围和敏感字段处理方式
+- 卡片展示覆盖状态项、敏感处理和后续迁移用途，保持与设置中心已有深色卡片系统一致
+- 移动端将导出按钮和三项指标改为单列满宽布局，避免 393px 视口横向溢出
+
+### 测试与验证
+- `npm test -- --run apps/web/src/lib/local-app-backup.test.ts`：2 个测试通过，覆盖文件名/状态收集和 Push subscription 脱敏
+- `npm run lint`：通过
+- `npm test`：23 个文件 / 96 个测试全部通过
+- `npm run build`：通过，`/settings` page size 约 16.2 kB
+- `npx playwright test --reporter=list`：14 个 production e2e 测试通过
+- 新增 e2e 覆盖：
+  - `/settings` 写入本机偏好、收藏和 Push subscription 测试数据后点击“导出本机备份”
+  - 断言下载文件名为 `smart-home-local-state-YYYY-MM-DD.json`
+  - 断言备份 JSON 包含偏好和脱敏 Push subscription 摘要
+  - 断言下载内容不包含 endpoint、p256dh 和 auth 原文
+- Playwright MCP 手动渲染验证：
+  - Browser Node 控制路径未暴露；本轮按前端测试约定回退到 Playwright MCP / CLI screenshot
+  - `/settings` 桌面约 `1280x900`：备份卡片可见，点击后 `role="status"` 显示“已导出本机数据备份”，无横向溢出
+  - `/settings` 移动端 `393x852`：`scrollWidth=393`，导出按钮满宽，三项指标单列收拢
+  - Console errors / page errors: 0；浏览器安装提示信息为非错误日志
+- 截图证据：
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-local-backup-chromium.png`
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-settings-local-backup-desktop.png`
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-settings-local-backup-mobile.png`
+
+### GitHub 状态
+- 本轮本地提交和 GitHub 发布将在文档更新后执行
+- 按用户要求优先尝试 GitHub MCP；若仍返回 `Bad credentials`，继续使用 GitHub CLI Git Data API fallback 发布到远程默认分支 `hermeswork` 的 `Desktop/study/webdemo/` 子树
+
+---
+
 ## 2026-06-09 (离线恢复面板与 PWA 兜底优化)
 
 ### 离线恢复逻辑

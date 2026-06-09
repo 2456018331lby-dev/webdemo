@@ -1057,6 +1057,46 @@ a {
   font-size: 14px;
 }
 
+.local-backup-card {
+  border-color: rgba(31, 212, 169, 0.16);
+  background:
+    radial-gradient(circle at top right, rgba(31, 212, 169, 0.12), transparent 38%),
+    var(--bg-card);
+}
+
+.local-backup-label {
+  color: var(--success);
+}
+
+.local-backup-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.local-backup-metric {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid rgba(164, 186, 221, 0.12);
+  border-radius: var(--radius-lg);
+  background: rgba(7, 17, 32, 0.38);
+}
+
+.local-backup-metric span,
+.local-backup-metric small {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.local-backup-metric strong {
+  color: var(--text-primary);
+  font-family: var(--font-display), var(--font-body), sans-serif;
+  font-size: 24px;
+  line-height: 1;
+}
+
 .settings-alert {
   display: flex;
   align-items: center;
@@ -3539,6 +3579,19 @@ a {
 
   .notification-view-actions .btn {
     flex: 1 1 140px;
+  }
+
+  .local-backup-card .card-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .local-backup-card .card-header .btn {
+    width: 100%;
+  }
+
+  .local-backup-metrics {
+    grid-template-columns: 1fr;
   }
 
   .notification-inbox-item {

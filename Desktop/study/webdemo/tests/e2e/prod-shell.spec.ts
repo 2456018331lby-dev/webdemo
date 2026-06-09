@@ -563,6 +563,87 @@ test("settings page persists notification preferences and edits device metadata"
   expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
 });
 
+test("settings page exports a redacted local app backup", async ({ page }, testInfo) => {
+  const collected = collectBrowserErrors(page);
+
+  await mockNotificationPermission(page, "granted");
+  await page.goto("/settings");
+  await page.evaluate(() => {
+    window.localStorage.setItem(
+      "smart-home-user-preferences-v1",
+      JSON.stringify({
+        schemaVersion: 1,
+        defaultLanding: "devices",
+        dashboardDensity: "compact"
+      })
+    );
+    window.localStorage.setItem("smart-home-device-favorites-v1", JSON.stringify(["device-relay-01"]));
+    window.localStorage.setItem(
+      "smart-home-push-subscription-v1",
+      JSON.stringify({
+        schemaVersion: 1,
+        endpoint: "https://push.example/subscriptions/e2e-secret-endpoint",
+        createdAt: "2026-06-09T01:00:00.000Z",
+        expirationTime: null,
+        keys: {
+          p256dh: "e2e-public-key-material",
+          auth: "e2e-auth-secret"
+        }
+      })
+    );
+  });
+  await page.reload({ waitUntil: "networkidle" });
+
+  await expect(page.getByRole("heading", { name: "导出本机操作状态" })).toBeVisible();
+
+  const backupDownloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "导出本机备份" }).click();
+  const backupDownload = await backupDownloadPromise;
+  const backupText = await readDownloadText(backupDownload);
+  const backup = JSON.parse(backupText);
+
+  expect(backupDownload.suggestedFilename()).toMatch(/^smart-home-local-state-\d{4}-\d{2}-\d{2}\.json$/);
+  expect(backup.summary).toEqual(
+    expect.objectContaining({
+      totalCount: expect.any(Number),
+      presentCount: expect.any(Number),
+      redactedCount: expect.any(Number)
+    })
+  );
+  expect(backup.summary.presentCount).toBeGreaterThanOrEqual(3);
+  expect(backup.entries).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        key: "smart-home-user-preferences-v1",
+        present: true,
+        value: expect.objectContaining({ defaultLanding: "devices" })
+      }),
+      expect.objectContaining({
+        key: "smart-home-push-subscription-v1",
+        present: true,
+        redacted: true,
+        value: expect.objectContaining({
+          endpointFingerprint: expect.stringMatching(/^psh-/),
+          hasAuthKey: true,
+          hasP256dhKey: true
+        })
+      })
+    ])
+  );
+  expect(backupText).not.toContain("https://push.example/subscriptions/e2e-secret-endpoint");
+  expect(backupText).not.toContain("e2e-public-key-material");
+  expect(backupText).not.toContain("e2e-auth-secret");
+  await expect(page.getByRole("status")).toContainText("已导出本机数据备份");
+
+  await safeScreenshot(page, {
+    path: `output/qa-settings-local-backup-${testInfo.project.name || "chromium"}.png`,
+    fullPage: false
+  });
+
+  expect(collected.consoleErrors, `console errors: ${collected.consoleErrors.join("\n")}`).toEqual([]);
+  expect(collected.pageErrors, `page errors: ${collected.pageErrors.join("\n")}`).toEqual([]);
+});
+
 test("settings page manages notification inbox read and archive state", async ({ page }, testInfo) => {
   const collected = collectBrowserErrors(page);
 

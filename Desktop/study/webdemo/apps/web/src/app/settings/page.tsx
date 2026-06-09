@@ -46,6 +46,17 @@ import {
   type NotificationInboxViewState
 } from "@/lib/notification-inbox";
 import {
+  JSON_MIME_TYPE,
+  downloadTextFile,
+  getDeviceTypeLabel as getExportDeviceTypeLabel
+} from "@/lib/export-data";
+import {
+  buildLocalAppBackup,
+  getLocalAppBackupFilename,
+  localAppBackupItems,
+  serializeLocalAppBackup
+} from "@/lib/local-app-backup";
+import {
   PUSH_SUBSCRIPTION_STORAGE_KEY,
   PUSH_SUBSCRIPTION_SYNC_STORAGE_KEY,
   buildPushReadiness,
@@ -224,11 +235,12 @@ function getDeviceIcon(type: string): string {
 
 function getDeviceTypeLabel(type: string): string {
   switch (type) {
-    case "relay-controller": return "继电器";
-    case "environment-sensor": return "传感器";
-    case "smart-plug": return "智能插座";
-    case "camera": return "摄像头";
-    case "door-lock": return "门锁";
+    case "relay-controller":
+    case "environment-sensor":
+    case "smart-plug":
+    case "camera":
+    case "door-lock":
+      return getExportDeviceTypeLabel(type);
     default: return type;
   }
 }
@@ -381,6 +393,20 @@ export default function SettingsPage() {
   function showPushNotice(message: string, duration = 3000) {
     setPushNotice(message);
     window.setTimeout(() => setPushNotice(null), duration);
+  }
+
+  function handleExportLocalBackup() {
+    const generatedAt = new Date();
+    const backup = buildLocalAppBackup(window.localStorage, generatedAt);
+
+    downloadTextFile(
+      getLocalAppBackupFilename(generatedAt),
+      serializeLocalAppBackup(backup),
+      JSON_MIME_TYPE
+    );
+    showOperationResult(
+      `已导出本机数据备份（${backup.summary.presentCount}/${backup.summary.totalCount} 项）`
+    );
   }
 
   function persistNotificationInbox(nextItems: NotificationInboxItem[]) {
@@ -905,6 +931,42 @@ export default function SettingsPage() {
                 </span>
               </label>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="card local-backup-card animate-fade-in-up delay-4">
+        <div className="card-header">
+          <div>
+            <div className="hero-label local-backup-label">
+              <span>⇩</span>
+              <span>本机备份</span>
+            </div>
+            <h2 className="card-title card-title--md">导出本机操作状态</h2>
+            <p className="card-subtitle">
+              生成一份 JSON 快照，包含本机偏好、收藏、筛选视图和通知队列；推送订阅只导出脱敏摘要。
+            </p>
+          </div>
+          <button className="btn btn-primary" onClick={handleExportLocalBackup}>
+            导出本机备份
+          </button>
+        </div>
+
+        <div className="local-backup-metrics">
+          <div className="local-backup-metric">
+            <span>覆盖状态项</span>
+            <strong>{localAppBackupItems.length}</strong>
+            <small>偏好 / 视图 / 通知</small>
+          </div>
+          <div className="local-backup-metric">
+            <span>敏感处理</span>
+            <strong>脱敏</strong>
+            <small>不导出 Push keys</small>
+          </div>
+          <div className="local-backup-metric">
+            <span>后续用途</span>
+            <strong>迁移</strong>
+            <small>对接 Supabase 前核对</small>
           </div>
         </div>
       </section>
