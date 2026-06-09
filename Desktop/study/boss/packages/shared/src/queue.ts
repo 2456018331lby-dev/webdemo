@@ -2,7 +2,7 @@ import type { CompanyResearchRecord, JobPosting, JobScore, QueueItem, QueuePolic
 import { addMinutes, stableId } from './text';
 import { defaultQueuePolicy } from './types';
 import { flattenRankedQueueItems } from './ranking';
-import { getResearchForJob } from './research';
+import { hasCompleteResearchCoverageForJob } from './research';
 
 export interface QueueState {
   items: QueueItem[];
@@ -193,7 +193,7 @@ function reconcileQueueItem(item: QueueItem, score: JobScore, nowIso: string, po
 function shouldKeepPaused(item: QueueItem, policy: QueuePolicy, research: CompanyResearchRecord[]): boolean {
   if (item.pauseReason === 'manual-review-required') return false;
   if (item.pauseReason !== 'missing-research') return true;
-  return policy.mode === 'auto' && policy.requireResearchBeforeAuto && getResearchForJob(item.job, research).length === 0;
+  return policy.mode === 'auto' && policy.requireResearchBeforeAuto && !hasCompleteResearchCoverageForJob(item.job, research);
 }
 
 function getJobKey(job: JobPosting): string {

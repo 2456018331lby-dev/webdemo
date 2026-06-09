@@ -140,6 +140,15 @@ export function getResearchCoverageForJob(job: JobPosting, records: CompanyResea
   return getResearchCoverage(job.company.name, job.title, getResearchForJob(job, records));
 }
 
+export function hasCompleteResearchCoverageForJob(job: JobPosting, records: CompanyResearchRecord[]): boolean {
+  return getResearchCoverageForJob(job, records).complete;
+}
+
+export function getMissingResearchQueriesForJob(job: JobPosting, records: CompanyResearchRecord[]): ResearchQuery[] {
+  const coverage = getResearchCoverageForJob(job, records);
+  return buildResearchQueries(job.company.name, job.title, coverage.missingKeys);
+}
+
 export function getResearchCoverage(companyName: string, jobTitle: string | undefined, records: CompanyResearchRecord[]): ResearchCoverage {
   const criteria = researchCriteria.map((criterion): ResearchCriterionCoverage => {
     const details = getCoverageDetails(criterion.key, records);

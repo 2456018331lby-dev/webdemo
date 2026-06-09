@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CompanyResearchRecord, JobPosting, JobScore, QueueState } from '../src';
-import { enqueueScoredJobs, getNextActionableItem, getNextRunnableItem, markQueueItemAttempted, rankQueueItemsByCompany, reconcileScoredQueue } from '../src';
+import { enqueueScoredJobs, getNextActionableItem, getNextRunnableItem, markQueueItemAttempted, parseCompanyResearch, rankQueueItemsByCompany, reconcileScoredQueue } from '../src';
 
 const job: JobPosting = {
   id: 'job-1',
@@ -185,7 +185,7 @@ describe('queue policy', () => {
     expect(reconciled.items[0]?.pauseReason).toBe('manual-review-required');
   });
 
-  it('requeues missing-research pauses when matching research is saved', () => {
+  it('requeues missing-research pauses when complete matching research is saved', () => {
     const queued = enqueueScoredJobs(emptyState, [{ job, score }], {
       nowIso: '2026-06-08T01:00:00.000Z',
       policy: { mode: 'auto', requireResearchBeforeAuto: true }
@@ -208,28 +208,42 @@ describe('queue policy', () => {
       warnings: [],
       confidence: 'medium'
     };
-    const matchingResearch: CompanyResearchRecord = {
-      ...unrelatedResearch,
-      id: 'research-example',
+    const incompleteMatchingResearch = parseCompanyResearch({
       companyName: 'Example',
-      capturedAt: '2026-06-08T01:03:00.000Z'
-    };
+      jobTitle: '前端工程师',
+      capturedAt: '2026-06-08T01:03:00.000Z',
+      summary: '薪资 25-35K，周末双休。'
+    });
+    const completeMatchingResearch = parseCompanyResearch({
+      companyName: 'Example',
+      jobTitle: '前端工程师',
+      sourceTitle: '员工评价',
+      capturedAt: '2026-06-08T01:04:00.000Z',
+      summary: '前端工程师薪资 25-35K，五险一金，年终奖，周末双休，带薪年假。员工评价整体稳定。'
+    });
 
     const stillPaused = reconcileScoredQueue(paused, [{ job, score }], {
       nowIso: '2026-06-08T01:02:00.000Z',
       policy: { mode: 'auto', requireResearchBeforeAuto: true },
       research: [unrelatedResearch]
     });
-    const recovered = reconcileScoredQueue(paused, [{ job, score }], {
+    const incomplete = reconcileScoredQueue(paused, [{ job, score }], {
       nowIso: '2026-06-08T01:03:00.000Z',
       policy: { mode: 'auto', requireResearchBeforeAuto: true },
-      research: [matchingResearch]
+      research: [incompleteMatchingResearch]
+    });
+    const recovered = reconcileScoredQueue(paused, [{ job, score }], {
+      nowIso: '2026-06-08T01:04:00.000Z',
+      policy: { mode: 'auto', requireResearchBeforeAuto: true },
+      research: [completeMatchingResearch]
     });
 
     expect(stillPaused.items[0]?.status).toBe('paused');
     expect(stillPaused.items[0]?.pauseReason).toBe('missing-research');
+    expect(incomplete.items[0]?.status).toBe('paused');
+    expect(incomplete.items[0]?.pauseReason).toBe('missing-research');
     expect(recovered.items[0]?.status).toBe('queued');
     expect(recovered.items[0]?.pauseReason).toBeUndefined();
-    expect(recovered.items[0]?.nextRunAt).toBe('2026-06-08T01:03:00.000Z');
+    expect(recovered.items[0]?.nextRunAt).toBe('2026-06-08T01:04:00.000Z');
   });
 });

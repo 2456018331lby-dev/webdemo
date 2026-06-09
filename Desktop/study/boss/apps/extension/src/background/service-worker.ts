@@ -8,14 +8,15 @@ import {
   enforceQueuePolicy,
   enqueueScoredJobs,
   evaluatePageSafety,
-  getResearchForJob,
+  getMissingResearchQueriesForJob,
   getNextActionableItem,
+  getResearchCoverageForJob,
   markQueueItemAttempted,
   reconcileScoredQueue,
   rotateDay,
   scoreJob
 } from '@job-assistant/shared';
-import type { ApplicationMode, ApplyAttemptResult, BlacklistRule, CompanyResearchRecord, JobPosting, QueuePolicy, QueueState, ResumeProfile } from '@job-assistant/shared';
+import type { ApplicationMode, ApplyAttemptResult, BlacklistRule, CompanyResearchRecord, JobPosting, QueuePolicy, QueueState, ResearchQuery, ResumeProfile } from '@job-assistant/shared';
 import type { RuntimeMessage, RuntimeResponse } from '../types/messages';
 import { loadState, updateState, type ExtensionState } from '../storage/state';
 
@@ -136,10 +137,7 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
 
     case 'OPEN_RESEARCH_SEARCHES': {
       const queries = buildResearchQueries(message.companyName, message.jobTitle, message.criteria);
-      for (const [index, query] of queries.entries()) {
-        const url = `https://www.bing.com/search?q=${encodeURIComponent(query.query)}`;
-        await chrome.tabs.create({ url, active: index === 0 });
-      }
+      await openResearchQueryTabs(queries);
       return { ok: true, message: `已打开 ${queries.length} 个资料搜索。` };
     }
 
@@ -268,12 +266,15 @@ async function runNextApplicationAction(nowIso: string, source: 'manual' | 'auto
     }
 
     if (shouldPauseForMissingResearch(runnable.job, current.policy, current.research)) {
+      const coverage = getResearchCoverageForJob(runnable.job, current.research);
+      const queries = getMissingResearchQueriesForJob(runnable.job, current.research);
+      const openedSearches = await openResearchQueryTabs(queries);
       const attempt: ApplyAttemptResult = {
         ok: false,
         mode: current.policy.mode,
         jobId: runnable.job.id,
         pauseReason: 'missing-research',
-        message: `自动模式要求先保存公司/岗位全网资料：${runnable.job.company.name} / ${runnable.job.title}。`
+        message: `自动模式缺少全网资料（${coverage.missingLabels.join('、')}）：${runnable.job.company.name} / ${runnable.job.title}。已打开 ${openedSearches} 个搜索页。`
       };
       return {
         ...current,
@@ -286,7 +287,13 @@ async function runNextApplicationAction(nowIso: string, source: 'manual' | 'auto
           platform: runnable.job.platform,
           jobId: runnable.job.id,
           message: attempt.message,
-          metadata: { source, pauseReason: attempt.pauseReason }
+          metadata: {
+            source,
+            pauseReason: attempt.pauseReason,
+            missingResearch: coverage.missingLabels,
+            openedSearches,
+            queries: queries.map((query) => query.query)
+          }
         })
       };
     }
@@ -544,7 +551,17 @@ function mergeJobs(existing: JobPosting[], incoming: JobPosting[]): JobPosting[]
 }
 
 function shouldPauseForMissingResearch(job: JobPosting, policy: QueuePolicy, research: CompanyResearchRecord[]): boolean {
-  return policy.mode === 'auto' && policy.requireResearchBeforeAuto && getResearchForJob(job, research).length === 0;
+  return policy.mode === 'auto' && policy.requireResearchBeforeAuto && !getResearchCoverageForJob(job, research).complete;
+}
+
+async function openResearchQueryTabs(queries: ResearchQuery[]): Promise<number> {
+  let opened = 0;
+  for (const [index, query] of queries.entries()) {
+    const url = `https://www.bing.com/search?q=${encodeURIComponent(query.query)}`;
+    await chrome.tabs.create({ url, active: index === 0 });
+    opened += 1;
+  }
+  return opened;
 }
 
 function createLocalApplyAttempt(job: JobPosting, mode: ApplicationMode): ApplyAttemptResult {

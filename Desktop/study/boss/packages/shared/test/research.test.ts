@@ -4,6 +4,7 @@ import {
   buildResearchQueries,
   buildResearchQuery,
   createResearchFromPage,
+  getMissingResearchQueriesForJob,
   getResearchCoverageForJob,
   getResearchForJob,
   parseCompanyResearch,
@@ -85,6 +86,25 @@ describe('company research', () => {
     expect(coverage.completedCount).toBe(3);
     expect(coverage.missingLabels).toEqual(['奖金', '年假', '风险']);
     expect(coverage.criteria.find((criterion) => criterion.key === 'salary')?.details).toEqual(['25-35k']);
+  });
+
+  it('builds search queries only for missing research coverage', () => {
+    const record = parseCompanyResearch({
+      companyName: '星河科技',
+      jobTitle: '前端工程师',
+      sourceUrl: 'https://example.com/salary',
+      capturedAt: '2026-06-08T00:00:00.000Z',
+      summary: '前端工程师薪资 25-35K，五险一金，周末双休。'
+    });
+
+    const queries = getMissingResearchQueriesForJob(job, [record]);
+
+    expect(queries.map((query) => query.key)).toEqual(['bonus', 'annualLeave', 'risk']);
+    expect(queries.map((query) => query.query)).toEqual([
+      '星河科技 前端工程师 奖金 年终奖 十三薪 期权',
+      '星河科技 前端工程师 年假 带薪年假 调休',
+      '星河科技 前端工程师 员工评价 裁员 欠薪 避雷 加班'
+    ]);
   });
 
   it('aggregates research coverage across multiple web sources', () => {
