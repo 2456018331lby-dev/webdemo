@@ -1,5 +1,24 @@
 # Progress Log
 
+## 2026-06-09 (本地生成产物与维护文档瘦身)
+
+### 清理范围
+- 删除 ignored 生成产物：`.playwright-mcp/`、`test-results/`、`output/`、`apps/web/.next/`、`supabase/.temp/`、`data/`、`.omx/logs/` 和 `.omx-devserver-job.txt`
+- 删除内容均未被 Git 跟踪；`apps/web/.next/` 和 `output/` 是本轮最大本地膨胀来源
+- 保留 `node_modules/`，因为后续继续开发和验证仍需要现有依赖
+- 保留 `.omx/project-memory.json`，删除 `.omx/logs/` 这类运行日志
+
+### 文档瘦身
+- `project-handoff.md` 删除逐条本地截图路径清单，改为说明截图/MCP 快照属于临时 QA 产物，已清理，需要时重新生成
+- `project-handoff.md` 将重复 native git push 失败记录收敛为当前三类状态：GitHub MCP 凭据失败、native git transport/token 失败、Git Data API fallback 可用
+- 源码回归测试暂不删除：它们覆盖当前功能边界，尤其是 Push subscription endpoint/key 不会被备份导出或恢复
+
+### 验证
+- `git status --short`：清理前工作树干净，删除项均为 ignored 产物
+- `rg` 确认当前代码不引用 `data/smart-home.db` / SQLite 本地数据库
+
+---
+
 ## 2026-06-09 (设置中心本机备份恢复预览)
 
 ### 本机恢复逻辑

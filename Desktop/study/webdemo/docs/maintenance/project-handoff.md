@@ -45,6 +45,7 @@ Read these first:
 20. 离线页移动端兜底优化：`/offline` 使用双栏恢复布局，移动端自动单列；PWA 安装提示在离线路由压缩为 compact 形态，保留安装入口但不遮挡“回到控制台 / 查看最近日志”恢复动作
 21. 设置中心本机备份导出：`/settings` 新增本机操作状态 JSON 备份卡片，汇总偏好、收藏、筛选视图、通知队列和推送同步快照；Push subscription 只导出端点指纹和 key 存在状态，不导出 endpoint / p256dh / auth 原文
 22. 设置中心本机备份恢复：`/settings` 支持选择备份 JSON、预览可恢复/覆盖/跳过项，并只写回非敏感本机状态；Push subscription 脱敏摘要明确跳过，避免误恢复浏览器推送密钥
+23. 本地生成产物瘦身：清理 ignored 的 Playwright/MCP 快照、e2e 输出、Next build 产物、旧本地 SQLite 数据和运行日志；维护文档删除本地截图逐条路径与重复 push 失败日志
 
 ### 2026-06-01 生产化基础
 
@@ -167,53 +168,9 @@ Read these first:
 
 ## Browser QA evidence
 
-- Screenshots:
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-home-desktop-chromium.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-homes-refresh-chromium.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-device-mobile-chromium.png`
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-home-priority-desktop.png` (homepage priority CTA QA, ignored temp evidence)
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-home-priority-mobile.png` (homepage priority CTA mobile QA, ignored temp evidence)
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-homes-refresh-desktop.png` (`/homes` refresh desktop QA, ignored temp evidence)
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-homes-refresh-mobile.png` (`/homes` refresh mobile QA, ignored temp evidence)
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-offline-recovery-desktop.png` (`/offline` recovery desktop QA, ignored temp evidence)
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-offline-recovery-mobile.png` (`/offline` recovery mobile QA, ignored temp evidence)
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-device-cooldown-desktop.png` (manual cooldown QA, ignored temp evidence)
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-device-mobile.png` (manual mobile QA, ignored temp evidence)
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-device-detail-restyled-desktop.png` (style migration QA, ignored temp evidence)
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-device-detail-restyled-mobile.png` (style migration QA, ignored temp evidence)
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-devices-favorites-desktop.png` (favorites QA, ignored temp evidence)
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-devices-favorites-mobile.png` (favorites QA, ignored temp evidence)
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-devices-filter-view-desktop.png` (device saved-view QA, ignored temp evidence)
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-devices-filter-view-mobile.png` (device saved-view QA, ignored temp evidence)
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-activity-export-desktop.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-activity-export-mobile.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-activity-log-view-chromium.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-activity-log-view-desktop.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-activity-log-view-mobile.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-devices-export-desktop.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-devices-export-mobile.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-export-actions-chromium.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-desktop.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-mobile.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-preferences-chromium.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-push-desktop.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-push-mobile.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-push-readiness-chromium.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-inbox-chromium.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-inbox-desktop.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-inbox-mobile.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-search-desktop.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-search-mobile.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-view-chromium.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-view-desktop.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-view-mobile.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-push-sync-chromium.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-push-sync-desktop.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-push-sync-mobile.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-local-backup-chromium.png`
-  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-local-backup-restore-chromium.png`
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-settings-local-backup-desktop.png` (`/settings` 本机备份桌面 QA, ignored temp evidence)
-  - `C:\Users\24560\AppData\Local\Temp\webdemo-settings-local-backup-mobile.png` (`/settings` 本机备份移动端 QA, ignored temp evidence)
+- Browser / Playwright screenshots and MCP console snapshots are temporary local artifacts, not project source.
+- 2026-06-09 cleanup removed generated evidence directories: `output/`, `.playwright-mcp/`, and `test-results/`.
+- Current durable verification evidence is the command history summarized in `## Verification`; regenerate screenshots only when a new rendered UI change needs visual QA.
 
 ## Android status (2026-06-01)
 
@@ -262,49 +219,10 @@ GitHub API 发布记录：
 - 远程路径：`Desktop/study/webdemo/`
 - 发布范围：本地 109 个 tracked 文件；未触碰远程 sibling 目录 `Desktop/study/boss/`、`Desktop/study/ccdemo/`
 
-已知推送失败记录：
-- 第一次执行 `git push github main` 失败，GitHub 返回：
-`Invalid username or token. Password authentication is not supported for Git operations.`
-- 设备详情样式组件化提交后再次执行 `git push github main` 失败，Git 返回：
-`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Recv failure: Connection was reset`
-- 最新一次执行 `git push github main` 失败，Git 返回：
-`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Failed to connect to github.com port 443 after 21089 ms: Could not connect to server`
-- 设备收藏提交后再次执行 `git push github main` 失败，GitHub 返回：
-`Invalid username or token. Password authentication is not supported for Git operations.`
-- 数据导出提交后再次执行 `git push github main` 失败，GitHub 返回：
-`Invalid username or token. Password authentication is not supported for Git operations.`
-- 设置中心提交后再次执行 `git push github main` 失败，Git 返回：
-`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Recv failure: Connection was reset`
-- PWA 推送接入提交后再次执行 `git push github main` 失败，GitHub 返回：
-`Invalid username or token. Password authentication is not supported for Git operations.`
-- 通知收件箱提交后再次执行 `git push github main` 失败，GitHub 返回：
-`Invalid username or token. Password authentication is not supported for Git operations.`
-- 通知收件箱高级筛选提交后再次执行 `git push github main` 失败，GitHub 返回：
-`Invalid username or token. Password authentication is not supported for Git operations.`
-- 推送订阅同步状态提交后再次执行 `git push github main` 失败，Git 返回：
-`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Recv failure: Connection was reset`
-- 推送订阅同步状态 amend 后再次执行 `git push github main` 失败，Git 返回：
-`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Failed to connect to github.com port 443 after 21082 ms: Could not connect to server`
-- 推送订阅同步状态最终提交后再次执行 `git push github main` 失败，GitHub 返回：
-`Invalid username or token. Password authentication is not supported for Git operations.`
-- 通知筛选视图持久化提交后再次执行 `git push github main` 失败，GitHub 返回：
-`Invalid username or token. Password authentication is not supported for Git operations.`
-- 通知筛选视图持久化 amend 后再次执行 `git push github main` 失败，GitHub 返回：
-`Invalid username or token. Password authentication is not supported for Git operations.`
-- 活动日志筛选视图持久化提交后再次执行 `git push github main` 失败，Git 返回：
-`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Recv failure: Connection was reset`
-- 活动日志筛选视图持久化 amend 后再次执行 `git push github main` 失败，Git 返回：
-`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Recv failure: Connection was reset`
-- 活动日志筛选视图持久化最终重试 `git push github main` 失败，Git 返回：
-`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Failed to connect to github.com port 443 after 21053 ms: Could not connect to server`
-- 活动日志筛选视图持久化再次最终重试 `git push github main` 失败，GitHub 返回：
-`Invalid username or token. Password authentication is not supported for Git operations.`
-- `/homes` 全局健康快照刷新反馈提交后再次执行 `git push github main` 失败，GitHub 返回：
-`Invalid username or token. Password authentication is not supported for Git operations.`
-- 首页操作摘要提交后再次执行 `git push github main` 失败，Git 返回：
-`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Recv failure: Connection was reset`
-- 离线恢复面板提交后再次执行 `git push github main` 失败，GitHub 返回：
-`Invalid username or token. Password authentication is not supported for Git operations.`
+当前 GitHub 连接状态：
+- GitHub MCP 仍返回 `Bad credentials`，不能作为发布通道。
+- Native `git push` 历史失败归为两类：token/password auth 无效，以及 `github.com:443` 连接重置/超时。
+- `gh auth status` 有可用 `repo` 权限；截至 2026-06-09，Git Data API fallback 是唯一已验证可用的远程发布通道。
 
 仍需要修复 GitHub MCP 凭据和 native git transport，之后再决定是否清理远程分支布局（当前默认分支是 `hermeswork`，且 workspace 位于 `Desktop/study/webdemo/` 子树）。如果继续使用 native git 推送，建议先保持 remote URL 不嵌入 token，并让 `gh auth setup-git` 管理凭据：
 ```bash
