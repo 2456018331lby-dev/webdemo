@@ -22,7 +22,7 @@ Build a local-first Chrome Manifest V3 job application assistant project. It sho
 |---|---|---|
 | 1. Discovery and architecture planning | complete | Initial plan/finding/progress files created. |
 | 2. Project scaffolding | complete | Root npm workspace, shared package, extension package and Vite config created. |
-| 3. Shared domain implementation | complete | Schemas, scoring, company-first ranking, queue, audit, resume text parser, multi-source research evidence parser/scorer and platform adapters added. |
+| 3. Shared domain implementation | complete | Schemas, scoring, company-first ranking, queue, audit, resume intent parser, multi-source research evidence parser/scorer and platform adapters added. |
 | 4. Extension shell | usable | Manifest, background service worker, content script, popup and side panel UI build into a loadable MV3 directory. |
 | 5. Platform adapters | in_progress | Boss adapter MVP in shared package; Lagou/Liepin/LinkedIn stubs added. |
 | 6. Automation safety | in_progress | Dry-run/manual/auto modes, queue policy, default blacklist, audit logs, daily cap, minimum interval, active-page research capture and safety pause checks added; auto performs one guarded page click and completes only after a visible success signal. A Chrome alarms-backed runner can be explicitly started/stopped to process one eligible ranked item per safe interval. |
@@ -32,7 +32,7 @@ Build a local-first Chrome Manifest V3 job application assistant project. It sho
 ## Acceptance Criteria
 - `npm install`, `npm test`, and `npm run build` work from the project root.
 - Extension builds into a loadable Chrome unpacked extension directory.
-- User can paste/upload resume text, score jobs, view explanations, queue jobs, blacklist companies/keywords, and run dry-run applications.
+- User can paste resume text, infer intent roles/cities/industries/skills, score jobs, view explanations, queue jobs, blacklist companies/keywords, and run dry-run applications.
 - User can open company/job web research searches and capture the active source page into local evidence for rescoring.
 - Multiple saved research sources for the same company/job are aggregated into one ranking signal with merged positive evidence and negative warning penalties.
 - Queue ordering is company-first: companies are ranked best-to-worst, then jobs inside each company are ranked best-to-worst.

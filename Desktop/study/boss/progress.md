@@ -33,6 +33,7 @@
 - Research scoring now aggregates all matching saved web sources for a company/job, merging salary, bonus, benefits, rest schedule, annual leave, and warnings before rescoring queue order.
 - Added an explicit scheduled automation runner: when policy mode is `auto`, the side panel can start/stop a Chrome alarms-backed queue worker that runs one eligible top-ranked item per safe interval and stops on pauses or non-auto mode.
 - Added explicit company-first ranking: queued jobs are grouped by company rank first, jobs are ranked inside each company second, and the side panel now displays those ranks.
+- Improved resume intent parsing: target roles, target cities, industries, skills, and years of experience can now be inferred from labeled resume text, and the side panel no longer seeds every resume with default target roles.
 
 ## Current Phase
 Phase 4/5/6/7: Extension shell, Boss adapter, automation safety, tests, and build verification are usable for MVP dry-run. Documentation and deeper platform/application flows remain in progress.
@@ -47,7 +48,7 @@ Phase 4/5/6/7: Extension shell, Boss adapter, automation safety, tests, and buil
 ## Test Results
 | Test | Expected | Actual | Status |
 |---|---|---|---|
-| `npm test` | Shared and extension tests pass | 23 tests passed across both workspaces | passed |
+| `npm test` | Shared and extension tests pass | 26 tests passed across both workspaces | passed |
 | `npm run typecheck` | Root workspace typechecks | Shared and extension TypeScript passed | passed |
 | `npm run build` | Vite emits loadable MV3 extension in `apps/extension/dist` | Manifest, popup, sidepanel, service worker, content script emitted | passed |
 | `npm audit --audit-level=moderate` | No known moderate-or-higher vulnerabilities | 0 vulnerabilities | passed |

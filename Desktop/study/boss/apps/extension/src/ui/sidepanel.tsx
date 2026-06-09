@@ -8,9 +8,10 @@ import './styles.css';
 function SidePanelApp() {
   const [state, setState] = useState<ExtensionState | undefined>();
   const [resumeText, setResumeText] = useState('');
-  const [targets, setTargets] = useState('前端工程师, 全栈工程师, AI应用开发工程师');
-  const [locations, setLocations] = useState('上海, 杭州, 深圳, 远程');
-  const [skills, setSkills] = useState('React, TypeScript, Node');
+  const [targets, setTargets] = useState('');
+  const [locations, setLocations] = useState('');
+  const [skills, setSkills] = useState('');
+  const [industries, setIndustries] = useState('');
   const [researchCompany, setResearchCompany] = useState('');
   const [researchJobTitle, setResearchJobTitle] = useState('');
   const [researchUrl, setResearchUrl] = useState('');
@@ -35,11 +36,17 @@ function SidePanelApp() {
       rawText: resumeText,
       targetTitles: splitCsv(targets),
       targetLocations: splitCsv(locations),
-      skills: splitCsv(skills)
+      skills: splitCsv(skills),
+      industries: splitCsv(industries)
     });
     const response = await sendRuntimeMessage({ type: 'SAVE_RESUME', resume });
-    if (response.ok) setState(response.state);
-    else setError(response.error);
+    if (response.ok) {
+      setState(response.state);
+      setTargets(resume.targetTitles.join(', '));
+      setLocations(resume.targetLocations.join(', '));
+      setSkills(resume.skills.join(', '));
+      setIndustries(resume.industries.join(', '));
+    } else setError(response.error);
   }
 
   async function scanActiveTab() {
@@ -138,12 +145,17 @@ function SidePanelApp() {
         <h2>1. 简历画像</h2>
         <textarea placeholder="粘贴简历文本；PDF/Word 解析接口已预留，MVP 先支持文本粘贴。" value={resumeText} onChange={(event) => setResumeText(event.target.value)} />
         <div className="row">
-          <input value={targets} onChange={(event) => setTargets(event.target.value)} aria-label="目标岗位" />
-          <input value={locations} onChange={(event) => setLocations(event.target.value)} aria-label="目标城市" />
+          <input placeholder="目标岗位（可从简历自动识别）" value={targets} onChange={(event) => setTargets(event.target.value)} aria-label="目标岗位" />
+          <input placeholder="目标城市（可从简历自动识别）" value={locations} onChange={(event) => setLocations(event.target.value)} aria-label="目标城市" />
         </div>
-        <input value={skills} onChange={(event) => setSkills(event.target.value)} aria-label="技能" />
+        <input placeholder="技能（可从简历自动识别）" value={skills} onChange={(event) => setSkills(event.target.value)} aria-label="技能" />
+        <input placeholder="目标行业（可从简历自动识别）" value={industries} onChange={(event) => setIndustries(event.target.value)} aria-label="目标行业" />
         <button disabled={!resumeText.trim()} onClick={saveResume}>保存简历画像</button>
-        {state?.resume && <p className="muted">已保存：{state.resume.skills.length} 个技能，{state.resume.targetTitles.length} 个目标岗位。</p>}
+        {state?.resume && (
+          <p className="muted">
+            已保存：{state.resume.targetTitles.length} 个目标岗位，{state.resume.targetLocations.length} 个目标城市，{state.resume.skills.length} 个技能，{state.resume.industries.length} 个目标行业。
+          </p>
+        )}
       </section>
 
       <section className="card">
