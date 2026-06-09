@@ -248,6 +248,9 @@ GitHub API 发布记录：
 - 按用户要求尝试 GitHub MCP：`mcp__github.list_commits` 返回 `Bad credentials`，当前 GitHub MCP 凭据不可用
 - 本地 `gh auth status` 有可用 `repo` 权限；但 native git fetch/push 仍无法连接 `github.com:443`
 - 首个 full-tree Git Data API sync commit：`80fbe5b5d059cfa3a83c40c329d91111806aa346`
+- 设置中心本机备份导出本地 commit：`928da2c` (`Let operators export local app state safely`)
+- 设置中心本机备份导出 Git Data API fallback commit：`c12cf134941c9eb9ce47cded695dba8435f0637d`
+- 本机备份导出发布范围：8 个变更文件，均位于远程 `Desktop/study/webdemo/` 子树；已核验远程存在 `local-app-backup.ts` 与更新后的 production e2e 规格文件
 - 远程目标：`2456018331lby-dev/webdemo` / `hermeswork`
 - 远程路径：`Desktop/study/webdemo/`
 - 发布范围：本地 109 个 tracked 文件；未触碰远程 sibling 目录 `Desktop/study/boss/`、`Desktop/study/ccdemo/`

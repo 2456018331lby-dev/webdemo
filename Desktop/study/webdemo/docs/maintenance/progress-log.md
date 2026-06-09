@@ -35,8 +35,11 @@
   - `C:\Users\24560\AppData\Local\Temp\webdemo-settings-local-backup-mobile.png`
 
 ### GitHub 状态
-- 本轮本地提交和 GitHub 发布将在文档更新后执行
-- 按用户要求优先尝试 GitHub MCP；若仍返回 `Bad credentials`，继续使用 GitHub CLI Git Data API fallback 发布到远程默认分支 `hermeswork` 的 `Desktop/study/webdemo/` 子树
+- 本轮本地 commit 已完成：`928da2c` (`Let operators export local app state safely`)
+- 按用户要求优先尝试 GitHub MCP：`mcp__github.list_commits` 返回 `Bad credentials`，当前 MCP 凭据仍不可用
+- GitHub CLI 认证有效，已通过 GitHub Git Data API fallback 发布远程 commit：`c12cf134941c9eb9ce47cded695dba8435f0637d`
+- 发布目标为远程默认分支 `hermeswork` 的 `Desktop/study/webdemo/` 子树，本轮更新 8 个文件；远程 sibling 目录未触碰
+- 远程核验通过：已能读取 `Desktop/study/webdemo/apps/web/src/lib/local-app-backup.ts` 和 `Desktop/study/webdemo/tests/e2e/prod-shell.spec.ts`
 
 ---
 

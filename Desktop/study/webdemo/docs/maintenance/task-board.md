@@ -77,7 +77,7 @@ Last updated: `2026-06-09`
 - [x] 本机备份 helper 单元测试覆盖已知状态收集、日期文件名和 Push subscription 脱敏
 - [x] Playwright 覆盖设置中心本机备份下载和敏感字段不落盘
 - [x] 所有 96 个测试通过
-- [x] GitHub API fallback 已将当前 webdemo tracked tree 同步到远程 `hermeswork` / `Desktop/study/webdemo/`
+- [x] GitHub API fallback 已将设置中心本机备份导出发布到远程 `hermeswork` / `Desktop/study/webdemo/`，MCP 凭据仍待修复
 
 ## Android / App Packaging
 
