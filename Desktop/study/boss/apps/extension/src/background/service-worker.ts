@@ -229,9 +229,13 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
       return { ok: true, state };
     }
 
-    case 'RUN_NEXT_APPLICATION':
-    case 'RUN_NEXT_DRY_RUN': {
+    case 'RUN_NEXT_APPLICATION': {
       const state = await runNextApplicationAction(new Date().toISOString(), 'manual');
+      return { ok: true, state };
+    }
+
+    case 'RUN_NEXT_DRY_RUN': {
+      const state = await runNextApplicationAction(new Date().toISOString(), 'manual', 'dry-run');
       return { ok: true, state };
     }
 
@@ -250,10 +254,11 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
   }
 }
 
-async function runNextApplicationAction(nowIso: string, source: 'manual' | 'automation'): Promise<ExtensionState> {
+async function runNextApplicationAction(nowIso: string, source: 'manual' | 'automation', modeOverride?: ApplicationMode): Promise<ExtensionState> {
   return updateState(async (current) => {
     const queue = rotateDay(current.queue, nowIso);
-    const policyDecision = enforceQueuePolicy(current.policy, queue.applicationsToday);
+    const effectivePolicy = modeOverride ? { ...current.policy, mode: modeOverride } : current.policy;
+    const policyDecision = enforceQueuePolicy(effectivePolicy, queue.applicationsToday);
     if (!policyDecision.safe) {
       return {
         ...current,
@@ -268,7 +273,7 @@ async function runNextApplicationAction(nowIso: string, source: 'manual' | 'auto
       };
     }
 
-    const runnable = getNextActionableItem(queue, current.policy, nowIso);
+    const runnable = getNextActionableItem(queue, effectivePolicy, nowIso);
     if (!runnable) {
       return {
         ...current,
@@ -283,20 +288,20 @@ async function runNextApplicationAction(nowIso: string, source: 'manual' | 'auto
       };
     }
 
-    if (shouldPauseForMissingResearch(runnable.job, current.policy, current.research)) {
+    if (shouldPauseForMissingResearch(runnable.job, effectivePolicy, current.research)) {
       const coverage = getResearchCoverageForJob(runnable.job, current.research);
       const queries = getMissingResearchQueriesForJob(runnable.job, current.research);
       const openedSearches = await openResearchQueryTabs(queries);
       const attempt: ApplyAttemptResult = {
         ok: false,
-        mode: current.policy.mode,
+        mode: effectivePolicy.mode,
         jobId: runnable.job.id,
         pauseReason: 'missing-research',
         message: `自动模式缺少全网资料（${coverage.missingLabels.join('、')}）：${runnable.job.company.name} / ${runnable.job.title}。已打开 ${openedSearches} 个搜索页。`
       };
       return {
         ...current,
-        queue: markQueueItemAttempted(queue, runnable.id, nowIso, current.policy, false, attempt.pauseReason),
+        queue: markQueueItemAttempted(queue, runnable.id, nowIso, effectivePolicy, false, attempt.pauseReason),
         runner: source === 'automation' ? { ...current.runner, lastTickAt: nowIso } : current.runner,
         pendingResearchTargets: upsertPendingResearchTarget(
           current.pendingResearchTargets,
@@ -330,12 +335,12 @@ async function runNextApplicationAction(nowIso: string, source: 'manual' | 'auto
       };
     }
 
-    const attempt = current.policy.mode === 'dry-run'
-      ? createLocalApplyAttempt(runnable.job, current.policy.mode)
-      : await prepareApplicationInTab(runnable.job, current.policy.mode);
+    const attempt = effectivePolicy.mode === 'dry-run'
+      ? createLocalApplyAttempt(runnable.job, effectivePolicy.mode)
+      : await prepareApplicationInTab(runnable.job, effectivePolicy.mode);
     return {
       ...current,
-      queue: markQueueItemAttempted(queue, runnable.id, nowIso, current.policy, attempt.ok, attempt.pauseReason),
+      queue: markQueueItemAttempted(queue, runnable.id, nowIso, effectivePolicy, attempt.ok, attempt.pauseReason),
       runner: source === 'automation' ? { ...current.runner, lastTickAt: nowIso } : current.runner,
       auditLog: appendAuditLog(current.auditLog, {
         at: nowIso,

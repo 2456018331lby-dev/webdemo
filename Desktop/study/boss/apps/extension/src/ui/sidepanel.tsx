@@ -83,7 +83,7 @@ function SidePanelApp() {
   }
 
   async function runNextDryRun() {
-    const response = await sendRuntimeMessage({ type: 'RUN_NEXT_APPLICATION' });
+    const response = await sendRuntimeMessage({ type: 'RUN_NEXT_DRY_RUN' });
     if (response.ok) setState(response.state);
     else setError(response.error);
   }
@@ -239,7 +239,7 @@ function SidePanelApp() {
             <span>自动投递前要求全网资料</span>
           </label>
           <div className="row">
-            <button className="warning" onClick={runNextDryRun}>执行下一条队列动作</button>
+            <button className="warning" onClick={runNextDryRun}>dry-run 下一条</button>
             <button className="secondary" disabled={policy.mode !== 'auto' || state?.runner.enabled} onClick={startQueueAutomation}>启动自动队列</button>
             <button className="secondary" disabled={!state?.runner.enabled} onClick={stopQueueAutomation}>停止自动队列</button>
           </div>
