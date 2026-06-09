@@ -1,5 +1,30 @@
 # Progress Log
 
+## 2026-06-09 (本机备份恢复风险预览)
+
+### 优化目标
+- 让 `/settings` 本机备份恢复预览直接显示恢复影响和风险，而不是只给出笼统“跳过”数量
+- 把上轮新增的 schema 校验结果前端化，便于恢复前核对无效、未知、缺失和脱敏项
+- 保持设置页为运维工具风格：信息密集、状态明确、移动端不横向溢出
+
+### 代码变更
+- `settings/page.tsx` 新增恢复状态计数，预览摘要拆分为可恢复、覆盖、无效、脱敏、未知
+- 恢复面板新增“恢复影响 / 风险核对 / 跳过说明”三列摘要，标明会写入多少项、是否覆盖当前状态、坏 schema 和未知状态数量
+- `globals.css` 为恢复摘要增加语义色和移动端单列布局
+
+### 测试
+- `settings-page.test.tsx` 新增备份文件选择回归，覆盖可恢复、覆盖、无效、脱敏、缺失、未知混合状态的 UI 摘要
+
+### 验证
+- `npm test -- --run apps/web/src/app/settings/settings-page.test.tsx apps/web/src/lib/local-app-backup.test.ts`：2 files / 12 tests 通过
+- `npm run lint`：通过
+- `npm test -- --run --maxWorkers=1`：26 files / 125 tests 通过
+- `npm run build`：通过
+- no-output Playwright smoke：`/settings` 桌面 `1366x900`、移动端 `390x844` 均可读入包含可恢复、无效、脱敏、缺失、未知状态的备份文件；风险预览可见，`scrollWidth` 未超过 viewport
+- 验证后已删除 `apps/web/.next/`；未发现 `.next`、`test-results`、`playwright-report`、`coverage`、`blob-report`、`output`、`.playwright-mcp` 或 `.omx`
+
+---
+
 ## 2026-06-09 (本机备份恢复多状态校验)
 
 ### 优化目标

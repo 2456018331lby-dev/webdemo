@@ -21,7 +21,7 @@ The repository should stay lean:
 - [x] Device ingest and downlink APIs with device token support
 - [x] Device favorites, filters, saved views, and exports
 - [x] Activity filters, saved views, and CSV export with formula-injection protection
-- [x] Settings center: local preferences, notifications, push readiness, notification inbox, backup export/restore with per-key validation, persisted device maintenance, reset to default device list
+- [x] Settings center: local preferences, notifications, push readiness, notification inbox, backup export/restore with per-key validation and risk preview, persisted device maintenance, reset to default device list
 - [x] Hardware and protocol documentation for ESP32S3, STM32H743, UART, ingest, ack, and telemetry
 - [x] Supabase schema, RLS policies, edge function skeleton, and server backend implementation
 - [x] Regression coverage: 114 Vitest tests before this cleanup
@@ -46,6 +46,7 @@ The repository should stay lean:
 - [x] Add a settings-device reset action that clears local maintenance overrides back to seed devices
 - [x] Validate settings-device backup restore values before writing them to `localStorage`
 - [x] Validate known local backup restore keys before writing preferences, favorites, saved views, notification inbox, and push sync state
+- [x] Surface local backup restore risk counts before applying a backup
 - [ ] Plan Supabase/account migration for settings-device local state once backend auth is available
 
 ### Hardware

@@ -268,6 +268,30 @@ function getLocalBackupRestoreStatusTone(status: string): string {
   }
 }
 
+type LocalBackupRestoreBreakdown = {
+  invalid: number;
+  redacted: number;
+  unknown: number;
+  missing: number;
+};
+
+function getLocalBackupRestoreBreakdown(plan: LocalAppBackupRestorePlan | null): LocalBackupRestoreBreakdown {
+  const breakdown: LocalBackupRestoreBreakdown = {
+    invalid: 0,
+    redacted: 0,
+    unknown: 0,
+    missing: 0
+  };
+
+  for (const item of plan?.items ?? []) {
+    if (item.status in breakdown) {
+      breakdown[item.status as keyof LocalBackupRestoreBreakdown] += 1;
+    }
+  }
+
+  return breakdown;
+}
+
 function formatLastSeen(timestamp: string): string {
   const date = new Date(timestamp);
   const now = new Date();
@@ -398,6 +422,10 @@ export default function SettingsPage() {
   const savedNotificationViewLabel = useMemo(
     () => savedNotificationView ? getSavedNotificationViewLabel(savedNotificationView, notificationDeviceOptions) : null,
     [notificationDeviceOptions, savedNotificationView]
+  );
+  const localBackupRestoreBreakdown = useMemo(
+    () => getLocalBackupRestoreBreakdown(localBackupRestorePlan),
+    [localBackupRestorePlan]
   );
   const activeNotice = operationResult ?? preferenceNotice ?? pushNotice;
 
@@ -1147,9 +1175,56 @@ export default function SettingsPage() {
             </div>
 
             <div className="local-backup-restore-summary">
-              <span>可恢复 {localBackupRestorePlan.summary.restorableCount} 项</span>
-              <span>覆盖 {localBackupRestorePlan.summary.overwriteCount} 项</span>
-              <span>跳过 {localBackupRestorePlan.summary.skippedCount} 项</span>
+              <span data-tone="success">可恢复 {localBackupRestorePlan.summary.restorableCount} 项</span>
+              <span data-tone="warning">覆盖 {localBackupRestorePlan.summary.overwriteCount} 项</span>
+              <span data-tone={localBackupRestoreBreakdown.invalid > 0 ? "danger" : "info"}>
+                无效 {localBackupRestoreBreakdown.invalid} 项
+              </span>
+              <span data-tone="info">脱敏 {localBackupRestoreBreakdown.redacted} 项</span>
+              <span data-tone={localBackupRestoreBreakdown.unknown > 0 ? "danger" : "info"}>
+                未知 {localBackupRestoreBreakdown.unknown} 项
+              </span>
+            </div>
+
+            <div className="local-backup-risk-strip">
+              <div>
+                <span>恢复影响</span>
+                <strong>
+                  {localBackupRestorePlan.summary.restorableCount === 0
+                    ? "无可写入项"
+                    : `${localBackupRestorePlan.summary.restorableCount} 项会写入本机`}
+                </strong>
+                <small>
+                  {localBackupRestorePlan.summary.overwriteCount > 0
+                    ? `${localBackupRestorePlan.summary.overwriteCount} 项会覆盖当前状态`
+                    : "不会覆盖当前已有状态"}
+                </small>
+              </div>
+              <div
+                data-tone={
+                  localBackupRestoreBreakdown.invalid > 0 || localBackupRestoreBreakdown.unknown > 0
+                    ? "danger"
+                    : "info"
+                }
+              >
+                <span>风险核对</span>
+                <strong>
+                  {localBackupRestoreBreakdown.invalid > 0 || localBackupRestoreBreakdown.unknown > 0
+                    ? "存在需人工核对项"
+                    : "未发现坏 schema"}
+                </strong>
+                <small>
+                  无效 {localBackupRestoreBreakdown.invalid} · 未知 {localBackupRestoreBreakdown.unknown} · 缺失{" "}
+                  {localBackupRestoreBreakdown.missing}
+                </small>
+              </div>
+              <div>
+                <span>跳过说明</span>
+                <strong>{localBackupRestorePlan.summary.skippedCount} 项不会恢复</strong>
+                <small>
+                  脱敏 {localBackupRestoreBreakdown.redacted} · 缺失 {localBackupRestoreBreakdown.missing}
+                </small>
+              </div>
             </div>
 
             <div className="local-backup-restore-list">
