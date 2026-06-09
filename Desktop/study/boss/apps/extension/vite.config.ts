@@ -16,13 +16,11 @@ export default defineConfig({
       input: {
         sidepanel: resolve(__dirname, 'sidepanel.html'),
         popup: resolve(__dirname, 'popup.html'),
-        background: resolve(__dirname, 'src/background/service-worker.ts'),
-        content: resolve(__dirname, 'src/content/main.ts')
+        background: resolve(__dirname, 'src/background/service-worker.ts')
       },
       output: {
         entryFileNames: (chunk) => {
           if (chunk.name === 'background') return 'background/service-worker.js';
-          if (chunk.name === 'content') return 'content/main.js';
           return 'assets/[name]-[hash].js';
         },
         chunkFileNames: 'assets/[name]-[hash].js',

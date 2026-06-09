@@ -183,7 +183,7 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
     case 'SCAN_ACTIVE_TAB': {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab.id) return { ok: false, error: '没有可扫描的活动标签页。' };
-      await chrome.tabs.sendMessage(tab.id, { type: 'CONTENT_EXTRACT_JOBS' } satisfies RuntimeMessage);
+      await requestJobExtractionFromTab(tab.id);
       return { ok: true, message: '已请求当前页面扫描岗位。' };
     }
 
@@ -494,11 +494,7 @@ async function prepareApplicationInTab(job: JobPosting, mode: Exclude<Applicatio
   await waitForTabComplete(tab.id);
 
   try {
-    return await chrome.tabs.sendMessage(tab.id, {
-      type: 'CONTENT_PREPARE_APPLICATION',
-      job,
-      mode
-    } satisfies RuntimeMessage) as ApplyAttemptResult;
+    return await requestApplicationPreparationFromTab(tab.id, job, mode);
   } catch (error) {
     return {
       ok: false,
@@ -528,6 +524,38 @@ async function waitForTabComplete(tabId: number, timeoutMs = 15_000): Promise<vo
     };
 
     chrome.tabs.onUpdated.addListener(listener);
+  });
+}
+
+async function requestApplicationPreparationFromTab(tabId: number, job: JobPosting, mode: Exclude<ApplicationMode, 'dry-run'>): Promise<ApplyAttemptResult> {
+  const message = {
+    type: 'CONTENT_PREPARE_APPLICATION',
+    job,
+    mode
+  } satisfies RuntimeMessage;
+
+  try {
+    return await chrome.tabs.sendMessage(tabId, message) as ApplyAttemptResult;
+  } catch {
+    await injectContentScript(tabId);
+    return await chrome.tabs.sendMessage(tabId, message) as ApplyAttemptResult;
+  }
+}
+
+async function requestJobExtractionFromTab(tabId: number): Promise<void> {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: 'CONTENT_EXTRACT_JOBS' } satisfies RuntimeMessage);
+    return;
+  } catch {
+    await injectContentScript(tabId);
+    await chrome.tabs.sendMessage(tabId, { type: 'CONTENT_EXTRACT_JOBS' } satisfies RuntimeMessage);
+  }
+}
+
+async function injectContentScript(tabId: number): Promise<void> {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ['content/main.js']
   });
 }
 
