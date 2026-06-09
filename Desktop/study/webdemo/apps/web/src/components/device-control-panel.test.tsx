@@ -1,9 +1,41 @@
 import React from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DeviceControlPanel } from "./device-control-panel";
 
+function ControlledHarness({
+  initialRelayOn,
+  isOffline = false,
+  onSendRelayCommand = vi.fn().mockResolvedValue(undefined),
+  commandCooldownMs
+}: {
+  initialRelayOn: boolean;
+  isOffline?: boolean;
+  onSendRelayCommand?: (nextValue: boolean) => Promise<void>;
+  commandCooldownMs?: number;
+}) {
+  const [relayOn, setRelayOn] = React.useState(initialRelayOn);
+
+  return (
+    <DeviceControlPanel
+      deviceName="客厅主灯"
+      deviceType="relay-controller"
+      relayOn={relayOn}
+      isOffline={isOffline}
+      commandCooldownMs={commandCooldownMs}
+      onSendRelayCommand={async (nextValue) => {
+        await onSendRelayCommand(nextValue);
+        setRelayOn(nextValue);
+      }}
+    />
+  );
+}
+
 describe("DeviceControlPanel", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("shows a pending state while a relay command is in flight", async () => {
     let resolveCommand: (() => void) | undefined;
 
@@ -15,18 +47,15 @@ describe("DeviceControlPanel", () => {
     );
 
     render(
-      <DeviceControlPanel
-        deviceName="Living Room Relay"
-        initialRelayOn={false}
-        isOffline={false}
-        onSendRelayCommand={onSendRelayCommand}
-      />
+      <ControlledHarness initialRelayOn={false} onSendRelayCommand={onSendRelayCommand} />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "开启" }));
+    fireEvent.click(screen.getByRole("button", { name: /开启/ }));
 
     expect(onSendRelayCommand).toHaveBeenCalledWith(true);
-    expect(screen.getByText("发送中")).toBeInTheDocument();
+    // 有两个地方显示 "发送中"：按钮和状态卡片
+    const sendingElements = screen.getAllByText(/发送中/);
+    expect(sendingElements.length).toBeGreaterThanOrEqual(1);
     await act(async () => {
       resolveCommand?.();
     });
@@ -34,35 +63,58 @@ describe("DeviceControlPanel", () => {
 
   it("updates the status after the relay command resolves", async () => {
     render(
-      <DeviceControlPanel
-        deviceName="Living Room Relay"
-        initialRelayOn={false}
-        isOffline={false}
-        onSendRelayCommand={vi.fn().mockResolvedValue(undefined)}
-      />
+      <ControlledHarness initialRelayOn={false} />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "开启" }));
+    fireEvent.click(screen.getByRole("button", { name: /开启/ }));
 
     await waitFor(() => {
-      expect(screen.getByText("已确认")).toBeInTheDocument();
+      expect(screen.getByText(/已确认/)).toBeInTheDocument();
     });
 
-    expect(screen.getByRole("button", { name: "关闭" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /关闭/ })).toBeInTheDocument();
   });
 
   it("disables relay control when the device is offline", () => {
     render(
-      <DeviceControlPanel
-        deviceName="Living Room Relay"
-        initialRelayOn={true}
-        isOffline={true}
-        onSendRelayCommand={vi.fn()}
-      />
+      <ControlledHarness initialRelayOn={true} isOffline />
     );
 
-    const button = screen.getByRole("button", { name: "关闭" });
+    const button = screen.getByRole("button", { name: /关闭/ });
 
     expect(button).toBeDisabled();
+    expect(screen.getByText(/离线/)).toBeInTheDocument();
+  });
+
+  it("shows device type icon", () => {
+    render(
+      <ControlledHarness initialRelayOn={false} />
+    );
+
+    expect(screen.getByText("💡")).toBeInTheDocument();
+  });
+
+  it("locks the relay button during command cooldown", async () => {
+    vi.useFakeTimers();
+
+    render(
+      <ControlledHarness initialRelayOn={false} commandCooldownMs={2200} />
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /开启/ }));
+    });
+
+    const cooldownButton = screen.getByRole("button", { name: /冷却/ });
+    expect(cooldownButton).toBeDisabled();
+    expect(screen.getByText(/控制冷却/)).toBeInTheDocument();
+
+    for (let i = 0; i < 3; i += 1) {
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+    }
+
+    expect(screen.getByRole("button", { name: /关闭/ })).not.toBeDisabled();
   });
 });

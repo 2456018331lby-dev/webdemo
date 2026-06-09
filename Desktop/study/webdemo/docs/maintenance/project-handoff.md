@@ -1,6 +1,6 @@
 # Smart Home System Handoff
 
-Last updated: `2026-05-26`
+Last updated: `2026-06-09`
 
 ## Project goal
 
@@ -18,46 +18,75 @@ Read these first:
 4. `docs/maintenance/progress-log.md`
 5. `docs/hardware/integration-guide.md` — **硬件集成入口**
 6. `docs/protocols/smart-home-mvp-device-contract.md` — UART 协议定义
-7. `docs/superpowers/specs/2026-05-10-smart-home-system-design.md`
-8. `docs/superpowers/plans/2026-05-10-smart-home-system-mvp.md`
 
-## Current tranche summary (2026-05-26)
+## Current tranche summary (2026-06-08)
 
-打通了生命周期策略端到端，消除了前端闪白，创建了硬件集成文档和设备上行API。
+本轮在 2026-06-01 已完成的 PWA / 移动端生产化基础上继续推进可用性和逻辑完善：
+
+1. 设备控制按钮接入真实命令冷却窗口：控制面板不再只展示冷却秒数，而是在命令确认后短暂锁定按钮并显示冷却提示，降低继电器短时间重复下发风险
+2. 首页动态数据读取优化：同一房间内的设备状态和命令历史改为并行读取，减少动态首页首屏等待
+3. 控制卡片视觉收敛：新增统一的控制卡片、继电器状态标签、冷却提示和移动端满宽按钮样式，减少新增内联样式扩散
+4. 补充回归测试：`DeviceControlPanel` 覆盖命令冷却锁定和恢复路径，单测总数更新为 59
+5. 设备详情页样式继续组件化：页头、面包屑、态势面板、遥测卡片、命令历史列表改为 class / `data-*` 驱动，相关组件只剩冷却进度条宽度这一处动态 inline style
+6. Production e2e 增补“冷却结束后二次控制”路径，确认按钮可从冷却状态恢复并再次发送命令
+7. 设备列表新增本机收藏工作流：收藏按钮、收藏设备区、只看收藏筛选、收藏优先排序，并用 `localStorage` 持久化常用设备入口
+8. `/activity` 和 `/devices` 新增当前筛选结果导出：支持 CSV / JSON 下载，活动日志和设备清单共用 `export-data` 序列化 helper，避免页面内重复标签映射和 CSV 转义逻辑
+9. `/settings` 升级为设置中心：新增本机用户偏好、通知渠道/触发规则、安静时段和通知策略预览；设备维护编辑/新增/重启/恢复出厂改为真实更新当前页面状态
+10. PWA 推送前端接入：`sw.js` 支持 `push` / `notificationclick`，设置中心新增通知权限、Service Worker、PushManager、VAPID 公钥和订阅端点就绪检测；配置 `NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY` 后可通过 PushManager 创建订阅
+11. 通知收件箱 / 投递历史：设置中心新增本机通知队列，支持规则过滤、关键未读统计、安静时段延后统计、标记已读、归档、清除归档和本地测试通知写入历史
+12. 通知收件箱高级筛选：支持关键词搜索、按设备、优先级和来源筛选，结果计数实时更新，移动端筛选面板不横向溢出
+13. 推送订阅同步健康状态：设置中心新增订阅端点同步快照、端点指纹、订阅年龄、过期/陈旧重订阅提示，为后续后端保存 push subscription 做好前端状态边界
+14. 通知筛选视图持久化：设置中心可保存、恢复和清除通知收件箱筛选视图，刷新后自动恢复常用未读/设备/关键词组合
+15. 活动日志筛选视图持久化：`/activity` 可保存、恢复和清除日志排障筛选视图，刷新后自动恢复关键词/类型/级别组合
+16. 设备筛选视图持久化：`/devices` 可保存、恢复和清除设备筛选视图，刷新后自动恢复关键词/类型/在线状态/只看收藏组合
+17. 全局健康快照刷新反馈：`/homes` 新增手动刷新、最近更新时间、失败保留旧快照提示，并收敛剩余内联样式；hero 装饰层改为不可滚动裁剪，避免刷新交互后内容被隐藏横向滚动偏移
+18. 首页操作摘要优化：`/` 首屏统计/房间焦点/优先处理队列抽到 `landing-dashboard` helper；首页优先处理项现在提供直接 CTA，hero 三个主操作在桌面和移动端都保持清晰按钮形态
+19. 离线恢复面板：`/offline` 从静态兜底页升级为可操作恢复面板，检测浏览器在线状态、监听 `online/offline` 事件，并通过 `role="status"` 公告“网络已恢复 / 仍处于离线状态”
+20. 离线页移动端兜底优化：`/offline` 使用双栏恢复布局，移动端自动单列；PWA 安装提示在离线路由压缩为 compact 形态，保留安装入口但不遮挡“回到控制台 / 查看最近日志”恢复动作
+
+### 2026-06-01 生产化基础
+
+本轮完成了四件关键维护工作：
+
+1. 为首页和壳层补齐 PWA 能力：manifest、service worker、离线页、安装提示、移动端底部导航
+2. 定位并修复 production build / start 问题：`next/font` 中文字体 preload 配置错误，以及脏 `.next` 产物导致的运行时污染
+3. 新增生产模式 e2e smoke test，补齐首页、PWA 资产、离线页、移动端设备详情的自动化证据
+4. 修正设备详情页移动端视觉问题：命令历史暗色化、底部安全区补足、底部导航缩窄
 
 ### 具体完成
 
-**生命周期端到端：**
-- `applyLifecyclePolicies()` 接入 API route GET / lifecycle-tick，不再是测试专属
-- device-runtime 暴露 `applyAckByCorrelationId()` — ESP32S3 不知道 commandId，只知道 correlationId
+**本轮代码变更：**
+- `layout.tsx` 新增 PWA metadata / viewport，并为 `Noto_Sans_SC` 关闭 preload，恢复 `next build`
+- `app-shell.tsx` / `install-app-prompt.tsx` / `pwa-bootstrap.tsx` 提供移动端壳层、安装提示和生产模式 service worker 注册
+- `manifest.ts` / `offline/page.tsx` / `public/sw.js` / 图标资源补齐安装与离线路径
+- 新增 `tests/e2e/prod-shell.spec.ts`，覆盖首页、manifest、service worker、离线页和移动端设备详情
+- `vitest.config.ts` 排除 `tests/e2e/**`，避免 Playwright 规格文件误入单测
+- `command-history-list.tsx`、`globals.css`、`devices/[deviceId]/page.tsx` 修复移动端底部遮挡和命令历史浅色对比度问题
 
-**前端体验：**
-- DeviceCommandClient 接受 `initialHistory`/`initialTelemetry` props — SSR 数据 hydration 保留，不闪白
-- 设备页 SSR 直接渲染生命周期状态栏（含颜色 + 文案），首次 HTML 可见
-- 客户端 5s 自动轮询 API 更新生命周期状态
-- homes 页 SSR 首屏数据直出（不闪"加载中"）+ 客户端 15s 轮询
+**本轮 QA：**
+- 使用 `python ...with_server.py --server "npm run start" --port 3000 -- npx playwright test tests/e2e/prod-shell.spec.ts`
+- 首页：验证主壳层加载、`/manifest.webmanifest` 可读、service worker 在 production 注册
+- 离线页：`/offline` 可访问
+- 移动端设备详情：`/devices/device-relay-01` 底部导航可见、无横向溢出、命令历史暗色面板显示正常
 
-**硬件对接基础设施：**
-- `docs/hardware/integration-guide.md` — 完整接入文档（架构图、接入步骤清单、时序、UART帧格式）
-- `POST /api/devices/[deviceId]/ingest` — ESP32S3 上行端点（接收 ack + telemetry）
-- `DeviceBackend` 接口补 `applyAckByCorrelationId()` 方法
-- ingest route 测试 3/3 通过
+### 页面路由
 
-**修复/清理：**
-- Supabase type/SQL 补 attempt_count / next_retry_at 列
-- 死代码 `dashboard-state.ts` 删除
-- lint 0 errors 0 warnings
-- 全部测试 55/55 通过
+| 路由 | 说明 |
+|------|------|
+| `/` | 首页（快速导航 + 核心功能） |
+| `/homes` | 全局健康度仪表盘 |
+| `/devices` | 设备列表 + 收藏 + 筛选视图保存 |
+| `/devices/[id]` | 设备详情 + 控制面板 |
+| `/activity` | 活动日志 + 当前筛选结果导出 |
+| `/settings` | 用户偏好 / 通知策略 / 设备维护 |
+| `/offline` | PWA 离线兜底 + 网络恢复检查 |
 
-### 当前 API 路由
+### API 路由
 
 | 路由 | 用途 | 调用方 |
 |------|------|--------|
-| `/` | Landing | 浏览器 |
-| `/homes` | 全局健康度 | 浏览器 + 15s轮询 |
-| `/devices/[deviceId]` | 设备详情(SSR) | 浏览器 + 5s轮询 |
-| `/api/devices/[deviceId]/commands` | 命令 GET/POST | 网页前端 |
-| `/api/devices/[deviceId]/ingest` | 设备上行(ack+遥测) | ESP32S3 |
+| `/api/devices/[id]/commands` | 命令 GET/POST | 网页前端 |
+| `/api/devices/[id]/ingest` | 设备上行(ack+遥测) | ESP32S3 |
 | `/api/system/lifecycle-tick` | 全局生命周期轮询 | 定时器 |
 | `/api/homes/snapshot` | 聚合统计 | homes 页面轮询 |
 
@@ -87,13 +116,173 @@ Read these first:
 
 ## Verification
 
-- `npm run test`: 13 files / 55 tests 全部通过
-- `npm run lint`: 0 errors, 0 warnings
+- `npm run lint`: 通过
+- `node ./node_modules/vitest/vitest.mjs run`: 22 files / 94 tests 全部通过
 - `npm run build`: 通过
+- Playwright QA:
+  - `tests/e2e/prod-shell.spec.ts`: 13 passed
+  - 首页 production PWA 资产通过；“优先处理”卡片显示 `1 台设备离线` 并提供“打开总览”CTA
+  - `/offline` 通过：离线兜底页显示恢复状态，在线浏览器下 `role="status"` 提示“网络已恢复”，并提供“回到控制台 / 查看最近日志”动作
+  - `/homes` 手动刷新快照通过：mock 聚合 API 更新到 `QA 复核空间`，最近更新时间、超时徽标、无横向溢出和 hero 几何未偏移均通过
+  - `/devices/device-relay-01` 移动端通过，无横向溢出
+  - `/devices/device-relay-01` 冷却恢复后二次控制通过
+  - `/devices` 收藏设备持久化与只看收藏过滤通过
+  - `/devices` 设备筛选视图通过：保存“继电器 + 在线 + 只看收藏 + 搜索‘继电器’”后刷新自动恢复；清除保存会移除本机视图记录
+  - `/activity` CSV 下载通过：文件名 `activity-logs-YYYY-MM-DD.csv`，内容包含日志表头和主灯继电器记录
+  - `/activity` 日志筛选视图通过：保存“排风扇 + 告警 + 警告”后刷新自动恢复；清除保存会移除本机视图记录
+  - `/devices` JSON 下载通过：文件名 `devices-YYYY-MM-DD.json`，内容包含 UI 收藏后的 `device-relay-01` / `favorite: true`
+  - `/settings` 偏好持久化通过：取消 PWA 推送写入 `localStorage["smart-home-user-preferences-v1"]`，刷新后保持；恢复默认后重新启用
+  - `/settings` 设备维护编辑通过：编辑主灯继电器名称后列表即时更新为 `主灯继电器 Pro`
+  - `/settings` 推送就绪通过：默认状态显示通知待授权；模拟已授权后显示等待 VAPID 公钥；本地测试通知动作可触发状态提示
+  - `/settings` 通知收件箱通过：默认显示 2 条未读；全部标为已读、恢复未读、归档、清除归档和本地测试通知写入历史均可用
+  - `/settings` 通知筛选通过：搜索“空气”、按设备、按关键优先级筛选均能正确收敛收件箱结果
+  - `/settings` 通知筛选视图通过：保存未读 + 搜索“空气” + 设备筛选后刷新自动恢复；清除保存会移除本机视图记录
+  - `/settings` 推送订阅同步通过：无同步快照时提示端点待同步；记录快照后显示有效；订阅超过 30 天后提示重新订阅
+- Rendered interaction QA (Playwright fallback):
+  - Browser 插件已安装，但当前会话没有暴露其要求的 Node 控制面工具，因此按前端测试技能回退到 Playwright MCP
+  - `/devices/device-relay-01` 桌面端点击继电器控制后出现 `冷却 2s`，按钮禁用，冷却提示可见
+  - 移动端 `393x852` 视口验证：`scrollWidth=393`，底部导航和控制按钮可见，无横向溢出
+  - 样式迁移后桌面 / 移动端 smoke：设备 hero、命令历史、状态标签 class 生效；桌面 `scrollWidth=1280`，移动端 `scrollWidth=393`
+  - 设备收藏 smoke：`localStorage["smart-home-device-favorites-v1"]=["device-relay-01"]`，只看收藏显示 `1 / 6` 台设备；桌面 / 移动端均无横向溢出
+  - 设备筛选视图 smoke：保存“继电器 + 在线 + 只看收藏 + 搜索‘继电器’”后桌面 `scrollWidth=1280`、移动端 `scrollWidth=393`；刷新恢复筛选，清除保存移除 `smart-home-device-filter-view-v1`
+  - 首页操作摘要 smoke：`/` 桌面 `1280x900` 和移动端 `393x852` 均显示优先处理 CTA；移动端 hero action 宽 327px，“安装到手机”按钮跨整行，无横向溢出
+  - 离线恢复 smoke：`/offline` 桌面 `1366x900` 和移动端 `393x852` 均显示“网络已恢复，可以返回控制台”；桌面 `scrollWidth=1366`、移动端 `scrollWidth=393`；“查看最近日志”可导航到 `/activity`
+  - 离线安装提示 smoke：`/offline` 的 PWA 安装提示使用 compact 形态；移动端恢复按钮 bottom 约 `683.5px`、安装提示 top 约 `709px`，`actionsCovered=false`，没有遮挡恢复动作
+  - 全局健康刷新 smoke：`/homes` 桌面 `1280x900` 和移动端 `393x852` 均可点击“刷新状态”并渲染 mock 快照；桌面 `scrollWidth=1280`、移动端 `scrollWidth=393`，hero 标题/按钮/最近更新时间均在卡片内
+  - 导出控件 smoke：`/activity` 与 `/devices` 在桌面 `1280x900`、移动端 `393x852` 均无横向溢出，导出按钮/全局健康按钮不重叠
+  - 活动日志筛选视图 smoke：保存视图恢复后桌面 `scrollWidth=1280`、移动端 `scrollWidth=393`；保存视图栏和操作按钮均未越界
+  - 设置中心 smoke：`/settings` 桌面 `1280x900`、移动端 `393x852` 均无横向溢出；偏好保存、恢复默认、通知摘要和设备维护卡片可见
+  - 推送接入 smoke：`/settings` 桌面 `1280x900`、移动端 `393x852` 均无横向溢出；PWA 推送卡显示 `等待 VAPID 公钥 / 待公钥`
+  - 通知收件箱 smoke：`/settings` 桌面 `1280x900` `scrollWidth=1280`；移动端 `393x852` `scrollWidth=393`，收件箱卡宽 361px，按钮均未越界
+  - 通知筛选 smoke：搜索“空气”后桌面 `scrollWidth=1280`、移动端 `scrollWidth=393`；移动端筛选面板宽 319px，控件均未越界
+  - 通知筛选视图 smoke：保存视图恢复后桌面 `scrollWidth=1280`、移动端 `scrollWidth=393`；保存视图栏和操作按钮均未越界
+  - 推送订阅同步 smoke：记录同步快照后桌面 `scrollWidth=1280`、移动端陈旧订阅 `scrollWidth=393`；同步面板和操作按钮均未越界
+  - Console errors / page errors: 0
+
+## Browser QA evidence
+
+- Screenshots:
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-home-desktop-chromium.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-homes-refresh-chromium.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-device-mobile-chromium.png`
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-home-priority-desktop.png` (homepage priority CTA QA, ignored temp evidence)
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-home-priority-mobile.png` (homepage priority CTA mobile QA, ignored temp evidence)
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-homes-refresh-desktop.png` (`/homes` refresh desktop QA, ignored temp evidence)
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-homes-refresh-mobile.png` (`/homes` refresh mobile QA, ignored temp evidence)
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-offline-recovery-desktop.png` (`/offline` recovery desktop QA, ignored temp evidence)
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-offline-recovery-mobile.png` (`/offline` recovery mobile QA, ignored temp evidence)
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-device-cooldown-desktop.png` (manual cooldown QA, ignored temp evidence)
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-device-mobile.png` (manual mobile QA, ignored temp evidence)
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-device-detail-restyled-desktop.png` (style migration QA, ignored temp evidence)
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-device-detail-restyled-mobile.png` (style migration QA, ignored temp evidence)
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-devices-favorites-desktop.png` (favorites QA, ignored temp evidence)
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-devices-favorites-mobile.png` (favorites QA, ignored temp evidence)
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-devices-filter-view-desktop.png` (device saved-view QA, ignored temp evidence)
+  - `C:\Users\24560\AppData\Local\Temp\webdemo-devices-filter-view-mobile.png` (device saved-view QA, ignored temp evidence)
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-activity-export-desktop.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-activity-export-mobile.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-activity-log-view-chromium.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-activity-log-view-desktop.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-activity-log-view-mobile.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-devices-export-desktop.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-devices-export-mobile.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-export-actions-chromium.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-desktop.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-mobile.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-preferences-chromium.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-push-desktop.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-push-mobile.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-push-readiness-chromium.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-inbox-chromium.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-inbox-desktop.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-inbox-mobile.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-search-desktop.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-search-mobile.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-view-chromium.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-view-desktop.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-notification-view-mobile.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-push-sync-chromium.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-push-sync-desktop.png`
+  - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-push-sync-mobile.png`
+
+## Android status (2026-06-01)
+
+- 当前已验证的“可直接开始使用”路径是：Android Chrome 安装 PWA 到主屏
+- 当前尚未完成 APK 构建或安卓真机/模拟器安装验证，**不能声称 APK 已可用**
+- 本机现状：Java 17 可用，但没有 Android SDK / Gradle toolchain，因此缺少 APK 打包前提
+
+## Supabase status (2026-06-01)
+
+- 本地没有全局 `supabase` CLI，但 `npx supabase` 可用，版本为 `2.102.0`
+- `npx supabase projects list --output json` 当前失败：缺少 `SUPABASE_ACCESS_TOKEN`
+- 仓库内没有 `.mcp.json`，Supabase MCP 尚未接到这个 workspace
+- `.env.example` 现已补充 `SMART_HOME_BACKEND=memory`，但真实切换到 Supabase 仍需要：
+  1. `npx supabase login` 或配置 `SUPABASE_ACCESS_TOKEN`
+  2. `npx supabase link --project-ref <project-ref> -p <db-password>`
+  3. `npx supabase db push --linked --include-all`
+  4. `.env.local` 写入真实 `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 
 ## 下一步推荐
 
-1. ESP32S3 固件：WiFi 连接 → ingest API 上报 → UART 帧编码（见 `docs/hardware/integration-guide.md` Step 1-2）
-2. Supabase 项目接入 → 执行迁移 → SupabaseDeviceBackend 替换为真实读写
-3. Auth
-4. 前端视觉重做
+1. 如果目标必须包含 APK：先安装 Android SDK / Gradle，再选择官方封装路线（Capacitor 或 TWA/PWABuilder），之后做真机或模拟器 smoke test
+2. 完成 Supabase 登录态或 MCP 认证，拿到 `project-ref` 和远程 DB password
+3. 执行 `npx supabase link` + `npx supabase db push --linked --include-all`
+4. 用 `SMART_HOME_BACKEND=supabase` 做一次真实数据库 smoke test
+5. 之后再继续 Auth / ESP32S3 真链路接入
+6. 配置 Web Push VAPID 公钥，并把 PWA push subscription endpoint 保存到账号或 Supabase 后端
+7. 将本机用户偏好、通知策略和通知收件箱接入账号或 Supabase 后端同步
+8. 用真实后端同步状态替换当前本机 push subscription 同步快照，并保留端点变更/过期/陈旧重订阅提示
+
+## GitHub 推送说明
+
+本地 Git 仓库已初始化。2026-06-07 已完成本地 commits，但推送尚未成功。
+
+已知推送失败记录：
+- 第一次执行 `git push github main` 失败，GitHub 返回：
+`Invalid username or token. Password authentication is not supported for Git operations.`
+- 设备详情样式组件化提交后再次执行 `git push github main` 失败，Git 返回：
+`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Recv failure: Connection was reset`
+- 最新一次执行 `git push github main` 失败，Git 返回：
+`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Failed to connect to github.com port 443 after 21089 ms: Could not connect to server`
+- 设备收藏提交后再次执行 `git push github main` 失败，GitHub 返回：
+`Invalid username or token. Password authentication is not supported for Git operations.`
+- 数据导出提交后再次执行 `git push github main` 失败，GitHub 返回：
+`Invalid username or token. Password authentication is not supported for Git operations.`
+- 设置中心提交后再次执行 `git push github main` 失败，Git 返回：
+`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Recv failure: Connection was reset`
+- PWA 推送接入提交后再次执行 `git push github main` 失败，GitHub 返回：
+`Invalid username or token. Password authentication is not supported for Git operations.`
+- 通知收件箱提交后再次执行 `git push github main` 失败，GitHub 返回：
+`Invalid username or token. Password authentication is not supported for Git operations.`
+- 通知收件箱高级筛选提交后再次执行 `git push github main` 失败，GitHub 返回：
+`Invalid username or token. Password authentication is not supported for Git operations.`
+- 推送订阅同步状态提交后再次执行 `git push github main` 失败，Git 返回：
+`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Recv failure: Connection was reset`
+- 推送订阅同步状态 amend 后再次执行 `git push github main` 失败，Git 返回：
+`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Failed to connect to github.com port 443 after 21082 ms: Could not connect to server`
+- 推送订阅同步状态最终提交后再次执行 `git push github main` 失败，GitHub 返回：
+`Invalid username or token. Password authentication is not supported for Git operations.`
+- 通知筛选视图持久化提交后再次执行 `git push github main` 失败，GitHub 返回：
+`Invalid username or token. Password authentication is not supported for Git operations.`
+- 通知筛选视图持久化 amend 后再次执行 `git push github main` 失败，GitHub 返回：
+`Invalid username or token. Password authentication is not supported for Git operations.`
+- 活动日志筛选视图持久化提交后再次执行 `git push github main` 失败，Git 返回：
+`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Recv failure: Connection was reset`
+- 活动日志筛选视图持久化 amend 后再次执行 `git push github main` 失败，Git 返回：
+`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Recv failure: Connection was reset`
+- 活动日志筛选视图持久化最终重试 `git push github main` 失败，Git 返回：
+`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Failed to connect to github.com port 443 after 21053 ms: Could not connect to server`
+- 活动日志筛选视图持久化再次最终重试 `git push github main` 失败，GitHub 返回：
+`Invalid username or token. Password authentication is not supported for Git operations.`
+- `/homes` 全局健康快照刷新反馈提交后再次执行 `git push github main` 失败，GitHub 返回：
+`Invalid username or token. Password authentication is not supported for Git operations.`
+- 首页操作摘要提交后再次执行 `git push github main` 失败，Git 返回：
+`fatal: unable to access 'https://github.com/2456018331lby-dev/webdemo.git/': Recv failure: Connection was reset`
+- 离线恢复面板提交后再次执行 `git push github main` 失败，GitHub 返回：
+`Invalid username or token. Password authentication is not supported for Git operations.`
+
+需要更新 GitHub token，并确认当前网络可以访问 `github.com:443` 后才能推送：
+```bash
+git remote set-url github https://<username>:<new_token>@github.com/2456018331lby-dev/webdemo.git
+git push github main
+```

@@ -7,7 +7,7 @@ describe("CommandHistoryList", () => {
   it("renders distinct status tones for each lifecycle state", () => {
     render(
       <CommandHistoryList
-        telemetryNote="Last heartbeat 10 seconds ago"
+        telemetryNote="最后心跳 10 秒前"
         history={[
           {
             commandId: "cmd-queued",
@@ -45,20 +45,20 @@ describe("CommandHistoryList", () => {
       />
     );
 
-    expect(screen.getByText(/Last heartbeat 10 seconds ago/)).toBeInTheDocument();
-    expect(screen.getByText("queued")).toHaveAttribute("data-status-tone", "queued");
-    expect(screen.getByText("delivered")).toHaveAttribute("data-status-tone", "inflight");
-    expect(screen.getByText("acknowledged")).toHaveAttribute("data-status-tone", "success");
-    expect(screen.getByText("failed")).toHaveAttribute("data-status-tone", "danger");
-    expect(screen.getByText("timed out")).toHaveAttribute("data-status-tone", "warning");
-    expect(screen.getByText(/Attempt 2/)).toBeInTheDocument();
-    expect(screen.getByText(/Retry after/)).toBeInTheDocument();
+    expect(screen.getByText(/最后心跳 10 秒前/)).toBeInTheDocument();
+    expect(screen.getByText("排队中")).toHaveAttribute("data-status-tone", "queued");
+    expect(screen.getByText("已送达")).toHaveAttribute("data-status-tone", "inflight");
+    expect(screen.getByText("已确认")).toHaveAttribute("data-status-tone", "success");
+    expect(screen.getByText("失败")).toHaveAttribute("data-status-tone", "danger");
+    expect(screen.getByText("已超时")).toHaveAttribute("data-status-tone", "warning");
+    expect(screen.getByText(/第 2 次尝试/)).toBeInTheDocument();
+    expect(screen.getByText(/重试时间/)).toBeInTheDocument();
   });
 
   it("shows retry metadata only for commands that actually need it", () => {
     render(
       <CommandHistoryList
-        telemetryNote="Temperature 24.6 C, RSSI -61 dBm"
+        telemetryNote="温度 24.6°C, 信号强度 -61 dBm"
         history={[
           {
             commandId: "cmd-normal",
@@ -70,7 +70,7 @@ describe("CommandHistoryList", () => {
       />
     );
 
-    expect(screen.queryByText(/Attempt/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Retry after/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/次尝试/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/重试时间/)).not.toBeInTheDocument();
   });
 });

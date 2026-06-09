@@ -17,8 +17,6 @@ type CommandHistoryListProps = {
 type StatusTone = {
   tone: "queued" | "inflight" | "success" | "danger" | "warning" | "neutral";
   label: string;
-  background: string;
-  color: string;
 };
 
 function getStatusTone(status: string): StatusTone {
@@ -26,44 +24,32 @@ function getStatusTone(status: string): StatusTone {
     case "queued":
       return {
         tone: "queued",
-        label: "queued",
-        background: "rgba(40, 118, 165, 0.12)",
-        color: "#225f88"
+        label: "排队中"
       };
     case "delivered":
       return {
         tone: "inflight",
-        label: "delivered",
-        background: "rgba(128, 92, 24, 0.14)",
-        color: "#7a5615"
+        label: "已送达"
       };
     case "acknowledged":
       return {
         tone: "success",
-        label: "acknowledged",
-        background: "rgba(25, 141, 85, 0.12)",
-        color: "#16653f"
+        label: "已确认"
       };
     case "failed":
       return {
         tone: "danger",
-        label: "failed",
-        background: "rgba(180, 52, 52, 0.12)",
-        color: "#9f2525"
+        label: "失败"
       };
     case "timed_out":
       return {
         tone: "warning",
-        label: "timed out",
-        background: "rgba(181, 106, 16, 0.14)",
-        color: "#8c580d"
+        label: "已超时"
       };
     default:
       return {
         tone: "neutral",
-        label: status,
-        background: "rgba(72, 94, 109, 0.12)",
-        color: "#415564"
+        label: status
       };
   }
 }
@@ -72,14 +58,23 @@ function formatRetryNote(entry: CommandHistoryEntry) {
   const parts: string[] = [];
 
   if (typeof entry.attemptCount === "number" && entry.attemptCount > 1) {
-    parts.push(`Attempt ${entry.attemptCount}`);
+    parts.push(`第 ${entry.attemptCount} 次尝试`);
   }
 
   if (entry.nextRetryAt) {
-    parts.push(`Retry after ${new Date(entry.nextRetryAt).toLocaleTimeString()}`);
+    parts.push(`重试时间: ${new Date(entry.nextRetryAt).toLocaleTimeString("zh-CN")}`);
   }
 
   return parts.join(" · ");
+}
+
+function formatCommandType(type: string): string {
+  switch (type) {
+    case "relay.set": return "继电器控制";
+    case "sensor.read": return "传感器读取";
+    case "device.restart": return "设备重启";
+    default: return type;
+  }
 }
 
 export function CommandHistoryList({ telemetryNote, history }: CommandHistoryListProps) {
@@ -101,7 +96,7 @@ export function CommandHistoryList({ telemetryNote, history }: CommandHistoryLis
     } else if (latest.status === "queued" && (latest.attemptCount ?? 1) > 1) {
       parts.push(`命令正在重试中（共 ${retryingCount} 条重试中记录）`);
       if (latest.nextRetryAt) {
-        parts.push(`下次重试: ${new Date(latest.nextRetryAt).toLocaleTimeString()}`);
+        parts.push(`下次重试: ${new Date(latest.nextRetryAt).toLocaleTimeString("zh-CN")}`);
       }
     } else if (latest.status === "acknowledged") {
       parts.push("最近命令已完成，链路正常");
@@ -112,46 +107,38 @@ export function CommandHistoryList({ telemetryNote, history }: CommandHistoryLis
     return parts.length > 0 ? parts : null;
   }, [history]);
 
+  const lifecycleTone: StatusTone["tone"] =
+    history[0]?.status === "timed_out"
+      ? "warning"
+      : history[0]?.status === "failed"
+        ? "danger"
+        : history[0]?.status === "queued" && (history[0]?.attemptCount ?? 1) > 1
+          ? "queued"
+          : "success";
+
   return (
-    <section className="surface-panel" style={{ background: "rgba(255,255,255,0.88)" }}>
-      <h2 className="page-section-title" style={{ fontSize: "24px" }}>Recent command history</h2>
-      <p className="page-section-copy" style={{ marginTop: "10px" }}>Latest telemetry note: {telemetryNote}</p>
+    <section className="surface-panel">
+      <h2 className="page-section-title page-section-title--sm">命令历史</h2>
+      <p className="page-section-copy command-history__telemetry">
+        最新遥测: {telemetryNote || "暂无数据"}
+      </p>
 
       {lifecycleSummary ? (
-        <div
-          style={{
-            marginTop: "14px",
-            borderRadius: "12px",
-            padding: "12px 16px",
-            background: history[0]?.status === "timed_out"
-              ? "rgba(181, 106, 16, 0.12)"
-              : history[0]?.status === "failed"
-                ? "rgba(180, 52, 52, 0.10)"
-                : history[0]?.status === "queued" && (history[0]?.attemptCount ?? 1) > 1
-                  ? "rgba(40, 118, 165, 0.10)"
-                  : "rgba(25, 141, 85, 0.08)",
-            border: `1px solid ${
-              history[0]?.status === "timed_out"
-                ? "rgba(181, 106, 16, 0.25)"
-                : history[0]?.status === "failed"
-                  ? "rgba(180, 52, 52, 0.22)"
-                  : history[0]?.status === "queued" && (history[0]?.attemptCount ?? 1) > 1
-                    ? "rgba(40, 118, 165, 0.22)"
-                    : "rgba(25, 141, 85, 0.20)"
-            }`
-          }}
-        >
+        <div className="lifecycle-summary" data-status-tone={lifecycleTone}>
           {lifecycleSummary.map((line, idx) => (
-            <p key={idx} className="info-copy" style={{ marginTop: idx === 0 ? 0 : "4px", color: "#27465d" }}>
+            <p
+              key={idx}
+              className={`info-copy lifecycle-summary__line ${idx === 0 ? "lifecycle-summary__line--primary" : ""}`}
+            >
               {line}
             </p>
           ))}
         </div>
       ) : null}
 
-      <div style={{ display: "grid", gap: "12px", marginTop: "18px" }}>
+      <div className="command-history__list">
         {history.length === 0 ? (
-          <div className="page-section-copy" style={{ marginTop: 0 }}>No commands have been sent yet.</div>
+          <div className="page-section-copy command-history__empty">暂无命令记录</div>
         ) : (
           history.map((entry) => {
             const statusTone = getStatusTone(entry.status);
@@ -160,37 +147,20 @@ export function CommandHistoryList({ telemetryNote, history }: CommandHistoryLis
             return (
               <article
                 key={entry.commandId}
-                style={{
-                  borderRadius: "16px",
-                  padding: "14px 16px",
-                  background: "var(--bg-soft)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: "16px",
-                  alignItems: "center",
-                  border: "1px solid var(--border-subtle)"
-                }}
+                className="device-list-item command-history__item fade-in"
               >
                 <div>
-                  <strong style={{ color: "var(--text-strong)" }}>{entry.commandType}</strong>
-                  <p className="info-copy" style={{ marginTop: "6px", fontSize: "14px" }}>
-                    Requested at {new Date(entry.requestedAt).toLocaleTimeString()}
+                  <strong className="command-history__type">{formatCommandType(entry.commandType)}</strong>
+                  <p className="info-copy command-history__time">
+                    请求时间: {new Date(entry.requestedAt).toLocaleTimeString("zh-CN")}
                   </p>
                   {retryNote ? (
-                    <p className="info-copy" style={{ marginTop: "6px", fontSize: "13px" }}>{retryNote}</p>
+                    <p className="info-copy command-history__retry">{retryNote}</p>
                   ) : null}
                 </div>
                 <span
+                  className="status-tag"
                   data-status-tone={statusTone.tone}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: "var(--radius-pill)",
-                    background: statusTone.background,
-                    color: statusTone.color,
-                    fontWeight: 700,
-                    fontSize: "12px",
-                    textTransform: "uppercase"
-                  }}
                 >
                   {statusTone.label}
                 </span>

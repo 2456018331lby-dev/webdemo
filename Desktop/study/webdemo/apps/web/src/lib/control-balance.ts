@@ -44,23 +44,46 @@ function clamp(value: number, min = 0, max = 100) {
   return Math.max(min, Math.min(max, Math.round(value)));
 }
 
+// 支持中英文格式的解析函数
 function parseRssi(telemetryText: string) {
-  const match = telemetryText.match(/RSSI\s*(-?\d+)/i);
+  // 支持 "RSSI -61 dBm" 或 "信号强度 -61 dBm"
+  const match = telemetryText.match(/(?:RSSI|信号强度)\s*(-?\d+)/i);
   return match ? Number(match[1]) : null;
 }
 
 function parseVoltage(telemetryText: string) {
-  const match = telemetryText.match(/Voltage\s*([0-9.]+)/i);
+  // 支持 "Voltage 3.28 V" 或 "电压 3.28 V"
+  const match = telemetryText.match(/(?:Voltage|电压)\s*([0-9.]+)/i);
   return match ? Number(match[1]) : null;
 }
 
 function parseHumidity(telemetryText: string) {
-  const match = telemetryText.match(/Humidity\s*([0-9.]+)/i);
+  // 支持 "Humidity 48.1%" 或 "湿度 48.1%"
+  const match = telemetryText.match(/(?:Humidity|湿度)\s*([0-9.]+)/i);
+  return match ? Number(match[1]) : null;
+}
+
+function parseTemperature(telemetryText: string) {
+  // 支持 "Temperature 24.6 C" 或 "温度 24.6°C"
+  const match = telemetryText.match(/(?:Temperature|温度)\s*([0-9.]+)/i);
+  return match ? Number(match[1]) : null;
+}
+
+function parseCO2(telemetryText: string) {
+  // 支持 "CO2 450ppm"
+  const match = telemetryText.match(/CO2\s*(\d+)/i);
+  return match ? Number(match[1]) : null;
+}
+
+function parsePM25(telemetryText: string) {
+  // 支持 "PM2.5 15μg/m³"
+  const match = telemetryText.match(/PM2\.?\s*5?\s*(\d+)/i);
   return match ? Number(match[1]) : null;
 }
 
 function isTelemetryStale(telemetryText: string) {
-  return /heartbeat\s+[0-9]+\s+minutes\s+ago/i.test(telemetryText);
+  // 支持 "Last heartbeat 2 minutes ago" 或 "最后心跳 2 分钟前"
+  return /(?:heartbeat|心跳)\s*\d+\s*(?:minutes?|分钟)/i.test(telemetryText);
 }
 
 function hasWeakSignal(telemetryText: string) {
@@ -117,6 +140,12 @@ export function formatReliabilityBand(score: number) {
   return "degraded";
 }
 
+export function formatReliabilityBandCN(score: number): string {
+  if (score >= 80) return "稳定";
+  if (score >= 55) return "关注";
+  return "异常";
+}
+
 export function computeRelayCommandRisk(input: RelayRiskInput) {
   let risk = CONTROL_BALANCE.risk.baseToggleRisk;
 
@@ -151,6 +180,12 @@ export function formatRiskLabel(score: number) {
     return "medium";
   }
   return "low";
+}
+
+export function formatRiskLabelCN(score: number): string {
+  if (score >= 75) return "高";
+  if (score >= 45) return "中";
+  return "低";
 }
 
 export function computeRelayCommandCooldownMs(input: CooldownInput) {
@@ -211,4 +246,55 @@ export function getHomeControlSummary(devices: ControlTelemetryInput[]) {
           ? "stable"
           : "watch"
   } as const;
+}
+
+// 解析遥测数据为结构化对象
+export function parseTelemetryData(telemetryText: string) {
+  return {
+    temperature: parseTemperature(telemetryText),
+    humidity: parseHumidity(telemetryText),
+    rssi: parseRssi(telemetryText),
+    voltage: parseVoltage(telemetryText),
+    co2: parseCO2(telemetryText),
+    pm25: parsePM25(telemetryText),
+    isStale: isTelemetryStale(telemetryText)
+  };
+}
+
+// 格式化遥测数据为中文显示
+export function formatTelemetryCN(telemetryText: string): Array<{ label: string; value: string; unit: string; status?: "normal" | "warning" | "danger" }> {
+  const data = parseTelemetryData(telemetryText);
+  const result: Array<{ label: string; value: string; unit: string; status?: "normal" | "warning" | "danger" }> = [];
+
+  if (data.temperature !== null) {
+    const status = data.temperature > 30 ? "warning" : data.temperature < 10 ? "warning" : "normal";
+    result.push({ label: "温度", value: data.temperature.toFixed(1), unit: "°C", status });
+  }
+
+  if (data.humidity !== null) {
+    const status = data.humidity > 65 ? "warning" : data.humidity < 30 ? "warning" : "normal";
+    result.push({ label: "湿度", value: data.humidity.toFixed(1), unit: "%", status });
+  }
+
+  if (data.rssi !== null) {
+    const status = data.rssi <= -72 ? "danger" : data.rssi <= -65 ? "warning" : "normal";
+    result.push({ label: "信号强度", value: data.rssi.toString(), unit: "dBm", status });
+  }
+
+  if (data.voltage !== null) {
+    const status = data.voltage < 3.2 ? "danger" : data.voltage < 3.5 ? "warning" : "normal";
+    result.push({ label: "电压", value: data.voltage.toFixed(2), unit: "V", status });
+  }
+
+  if (data.co2 !== null) {
+    const status = data.co2 > 1000 ? "warning" : "normal";
+    result.push({ label: "CO2", value: data.co2.toString(), unit: "ppm", status });
+  }
+
+  if (data.pm25 !== null) {
+    const status = data.pm25 > 35 ? "warning" : "normal";
+    result.push({ label: "PM2.5", value: data.pm25.toString(), unit: "μg/m³", status });
+  }
+
+  return result;
 }

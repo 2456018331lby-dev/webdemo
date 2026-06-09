@@ -30,7 +30,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const { messageType } = body;
 
     // 确保设备状态在运行时中存在
-    let state = await getDeviceState(deviceId);
+    const state = await getDeviceState(deviceId);
     if (!state) {
       seedDeviceState({
         deviceId,
