@@ -38,7 +38,10 @@ npm install
 npm test
 npm run typecheck
 npm run build
+npm run test:edge
 ```
+
+`npm run test:edge` 会先构建扩展，再启动一个独立的 Microsoft Edge 临时用户目录，加载 `apps/extension/dist`，检查 side panel、后台消息、默认 dry-run 策略、公司/岗位排序和 dry-run 执行链路。测试结束后会关闭临时 Edge 并删除临时用户目录，保留 `apps/extension/dist` 方便手动加载。
 
 ## 加载插件
 

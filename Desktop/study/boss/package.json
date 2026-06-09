@@ -10,6 +10,7 @@
   "scripts": {
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces",
+    "test:edge": "npm run build && node scripts/edge-extension-smoke.mjs",
     "typecheck": "npm run typecheck --workspaces"
   },
   "devDependencies": {
