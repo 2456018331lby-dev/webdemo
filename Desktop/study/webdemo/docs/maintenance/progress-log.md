@@ -37,8 +37,11 @@
   - `C:\Users\24560\Desktop\study\webdemo\output\qa-settings-local-backup-restore-chromium.png`
 
 ### GitHub 状态
-- 本轮本地 commit 和 GitHub 发布将在维护文档更新后执行
-- 仍会按用户要求优先尝试 GitHub MCP；若继续返回 `Bad credentials`，使用 GitHub CLI Git Data API fallback 发布到远程默认分支 `hermeswork` 的 `Desktop/study/webdemo/` 子树
+- 本轮本地 commit 已完成：`80875f4` (`Make local backups recoverable without restoring secrets`)
+- 按用户要求优先尝试 GitHub MCP：`mcp__github.list_commits` 返回 `Bad credentials`，当前 MCP 凭据仍不可用
+- GitHub CLI 认证有效，已通过 GitHub Git Data API fallback 发布远程 commit：`de46cbd4d94972afea51fe0a6f7ae6e14d542ab5`
+- 发布目标为远程默认分支 `hermeswork` 的 `Desktop/study/webdemo/` 子树，本轮更新 8 个文件；远程 sibling 目录未触碰
+- 远程核验通过：已能读取更新后的 `Desktop/study/webdemo/apps/web/src/lib/local-app-backup.ts` 和 `Desktop/study/webdemo/tests/e2e/prod-shell.spec.ts`
 
 ---
 

@@ -255,6 +255,9 @@ GitHub API 发布记录：
 - 设置中心本机备份导出本地 commit：`928da2c` (`Let operators export local app state safely`)
 - 设置中心本机备份导出 Git Data API fallback commit：`c12cf134941c9eb9ce47cded695dba8435f0637d`
 - 本机备份导出发布范围：8 个变更文件，均位于远程 `Desktop/study/webdemo/` 子树；已核验远程存在 `local-app-backup.ts` 与更新后的 production e2e 规格文件
+- 设置中心本机备份恢复本地 commit：`80875f4` (`Make local backups recoverable without restoring secrets`)
+- 设置中心本机备份恢复 Git Data API fallback commit：`de46cbd4d94972afea51fe0a6f7ae6e14d542ab5`
+- 本机备份恢复发布范围：8 个变更文件，均位于远程 `Desktop/study/webdemo/` 子树；已核验远程存在更新后的 `local-app-backup.ts` 与 production e2e 规格文件
 - 远程目标：`2456018331lby-dev/webdemo` / `hermeswork`
 - 远程路径：`Desktop/study/webdemo/`
 - 发布范围：本地 109 个 tracked 文件；未触碰远程 sibling 目录 `Desktop/study/boss/`、`Desktop/study/ccdemo/`

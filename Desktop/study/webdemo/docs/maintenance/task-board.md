@@ -80,7 +80,7 @@ Last updated: `2026-06-09`
 - [x] 本机备份恢复 helper 单元测试覆盖 schema 校验、恢复计划、坏数据跳过和脱敏订阅不恢复
 - [x] Playwright 覆盖设置中心本机备份上传预览、恢复写回和 Push subscription 保留当前订阅
 - [x] 所有 98 个测试通过
-- [x] GitHub API fallback 已将设置中心本机备份导出发布到远程 `hermeswork` / `Desktop/study/webdemo/`，MCP 凭据仍待修复
+- [x] GitHub API fallback 已将设置中心本机备份恢复发布到远程 `hermeswork` / `Desktop/study/webdemo/`，MCP 凭据仍待修复
 
 ## Android / App Packaging
 
