@@ -50,6 +50,17 @@ async function prepareApplicationOnPage(job: JobPosting, mode: Exclude<Applicati
     };
   }
 
+  const pageMatch = evaluateJobPageMatch(job);
+  if (!pageMatch.ok) {
+    return {
+      ok: false,
+      mode,
+      jobId: job.id,
+      pauseReason: 'unknown-dom',
+      message: pageMatch.message
+    };
+  }
+
   const existingStatus = findExistingApplicationStatus();
   if (existingStatus) {
     return {
@@ -91,6 +102,29 @@ async function prepareApplicationOnPage(job: JobPosting, mode: Exclude<Applicati
   applyTarget.click();
   await waitForPageReaction();
   return classifyPostClickResult(job, mode, visibleText(applyTarget), attempt);
+}
+
+function evaluateJobPageMatch(job: JobPosting): { ok: true } | { ok: false; message: string } {
+  const pageText = normalizeComparableText([
+    window.location.href,
+    document.title,
+    document.body.innerText
+  ].join(' '));
+  const title = normalizeComparableText(job.title);
+  const company = normalizeComparableText(job.company.name);
+  const titleMatched = title.length >= 6 && pageText.includes(title);
+  const companyMatched = company.length >= 2 && pageText.includes(company);
+
+  if (titleMatched || companyMatched) return { ok: true };
+
+  return {
+    ok: false,
+    message: `页面内容与队列岗位不匹配，已暂停以防误投：${job.company.name} / ${job.title}。`
+  };
+}
+
+function normalizeComparableText(value: string): string {
+  return value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 }
 
 function createSafetySnapshot() {

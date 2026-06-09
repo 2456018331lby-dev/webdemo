@@ -83,6 +83,7 @@ try {
     const autoResearch = await verifyAutoResearchCapture(client, port, resume, nowIso);
     const automationPreflight = await verifyStartAutomationPreflight(client, resume, nowIso);
     const queueAutoApply = await verifyQueueAutoApply(client, port, resume, nowIso);
+    const mismatchedPage = await verifyQueueMismatchedPagePause(client, port, resume, nowIso);
     const alreadyApplied = await verifyAlreadyAppliedCompletion(client, port, resume, nowIso);
     const requiredFieldPause = await verifyQueueRequiredFieldPause(client, port, resume, nowIso);
 
@@ -129,6 +130,7 @@ try {
       queueResearchDuplicateSearches: queueResearchPreflight.duplicateSearches,
       queueExplanationRendered: queueExplanation.rendered,
       queueAutoApplyCompleted: queueAutoApply.completedJobId,
+      mismatchedPagePauseReason: mismatchedPage.pauseReason,
       alreadyAppliedCompleted: alreadyApplied.completedJobId,
       requiredFieldPauseReason: requiredFieldPause.pauseReason,
       rankedJobIds: queuedIds,
@@ -178,6 +180,17 @@ async function openFakeBossQueueApplyPage(port) {
     makeFakeBossQueueApplyHtml(),
     '投递简历',
     'Fake BOSS queue apply page did not render expected apply target.',
+    { urlPattern: 'https://www.zhipin.com/*', requestUrlIncludes: 'zhipin.com' }
+  );
+}
+
+async function openFakeBossMismatchedApplyPage(port) {
+  return openInterceptedPage(
+    port,
+    'https://www.zhipin.com/job_detail/edge-mismatched-apply.html',
+    makeFakeBossMismatchedApplyHtml(),
+    '完全不同岗位',
+    'Fake BOSS mismatched apply page did not render expected mismatched job.',
     { urlPattern: 'https://www.zhipin.com/*', requestUrlIncludes: 'zhipin.com' }
   );
 }
@@ -321,6 +334,27 @@ function makeFakeBossQueueApplyHtml() {
         <button id="apply" type="button" onclick="document.getElementById('result').textContent = '投递成功'; this.textContent = '已投递';">投递简历</button>
       </section>
       <p>React TypeScript SaaS 平台研发，五险一金，年终奖，周末双休，带薪年假。</p>
+      <p id="result" aria-live="polite"></p>
+    </article>
+  </body>
+</html>`;
+}
+
+function makeFakeBossMismatchedApplyHtml() {
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <title>BOSS mismatched apply</title>
+  </head>
+  <body>
+    <article class="job-detail">
+      <h1>完全不同岗位</h1>
+      <p class="company-name">错误公司</p>
+      <section class="job-detail-op">
+        <button id="apply" type="button" onclick="document.getElementById('result').textContent = '不应点击';">投递简历</button>
+      </section>
+      <p>该页面故意不包含队列岗位标题或公司名。</p>
       <p id="result" aria-live="polite"></p>
     </article>
   </body>
@@ -617,6 +651,43 @@ async function verifyQueueAutoApply(client, port, resume, nowIso) {
   } finally {
     fakeApplyPage.client.close();
     await closeTarget(port, fakeApplyPage.target.id);
+  }
+}
+
+async function verifyQueueMismatchedPagePause(client, port, resume, nowIso) {
+  await clearExtensionStorage(client);
+  await sendRuntimeMessage(client, { type: 'SAVE_RESUME', resume });
+  await sendRuntimeMessage(client, {
+    type: 'SET_POLICY',
+    policy: {
+      dailyLimit: 20,
+      minMinutesBetweenActions: 3,
+      maxQueueSize: 100,
+      mode: 'auto',
+      requireResearchBeforeAuto: false
+    }
+  });
+
+  const job = makeMismatchedApplyJob(nowIso);
+  const queued = await sendRuntimeMessage(client, { type: 'QUEUE_JOBS', jobs: [job] });
+  assert(queued.state?.queue?.items?.[0]?.job?.id === job.id, `Expected mismatched apply job to be first, got ${queued.state?.queue?.items?.[0]?.job?.id}`);
+
+  const fakePage = await openFakeBossMismatchedApplyPage(port);
+  try {
+    await activateTarget(port, fakePage.target.id);
+    const response = await sendRuntimeMessage(client, { type: 'RUN_NEXT_APPLICATION' });
+    const item = response.state?.queue?.items?.find((queueItem) => queueItem.job.id === job.id);
+    assert(item?.status === 'paused', `Expected mismatched queue item to pause, got ${item?.status}`);
+    assert(item?.pauseReason === 'unknown-dom', `Expected unknown-dom pause, got ${item?.pauseReason}`);
+    assert(response.state?.auditLog?.[0]?.action === 'apply.paused', `Expected apply.paused audit log, got ${response.state?.auditLog?.[0]?.action}`);
+    assert(response.state?.auditLog?.[0]?.message?.includes('页面内容与队列岗位不匹配'), `Expected mismatch pause message, got ${response.state?.auditLog?.[0]?.message}`);
+
+    const resultText = await evaluate(fakePage.client, 'document.getElementById("result")?.textContent ?? ""');
+    assert(resultText === '', `Expected mismatched page not to click apply, got ${resultText}`);
+    return { pauseReason: item.pauseReason };
+  } finally {
+    fakePage.client.close();
+    await closeTarget(port, fakePage.target.id);
   }
 }
 
@@ -1046,6 +1117,22 @@ function makeQueueAutoApplyJob(nowIso) {
     requirements: ['React', 'TypeScript'],
     tags: ['React', 'TypeScript', '五险一金', '年终奖', '双休', '带薪年假'],
     url: 'https://www.zhipin.com/job_detail/edge-queue-auto-apply.html',
+    scrapedAt: nowIso
+  };
+}
+
+function makeMismatchedApplyJob(nowIso) {
+  return {
+    id: 'edge-mismatched-apply',
+    platform: 'boss',
+    title: '匹配失败前端工程师',
+    company: { name: '匹配保护科技', industry: 'SaaS', location: '上海', tags: ['五险一金', '双休'] },
+    location: '上海',
+    salary: { min: 39_000, max: 49_000, currency: 'CNY', period: 'month', raw: '39-49K' },
+    description: 'React TypeScript SaaS 平台研发，五险一金，年终奖，周末双休，带薪年假。',
+    requirements: ['React', 'TypeScript'],
+    tags: ['React', 'TypeScript', '五险一金', '年终奖', '双休', '带薪年假'],
+    url: 'https://www.zhipin.com/job_detail/edge-mismatched-apply.html',
     scrapedAt: nowIso
   };
 }
