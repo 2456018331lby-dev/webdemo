@@ -53,6 +53,7 @@ Last updated: `2026-06-09`
 - [x] 设备控制 pending 反馈（polling/busy 显示等待硬件确认，reported state 不提前改写）
 - [x] 设备命令生命周期反馈（delivered 显示已送达但继续等 ack，failed/timed_out 解锁并报错）
 - [x] 命令历史 lifecycle summary 语义收敛（delivered 使用 in-flight tone，不再展示成完成态）
+- [x] 设置页恢复出厂应用内确认（替代原生 confirm，危险操作可取消且移动端一致）
 
 ### 数据/测试
 - [x] 中文化 mock 数据
@@ -86,7 +87,7 @@ Last updated: `2026-06-09`
 - [x] 本机备份恢复 helper 单元测试覆盖 schema 校验、恢复计划、坏数据跳过和脱敏订阅不恢复
 - [x] Playwright 覆盖设置中心本机备份上传预览、恢复写回和 Push subscription 保留当前订阅
 - [x] CSV 导出公式注入防护（文本单元格前导危险字符 neutralize，数字值保持数字语义）
-- [x] 所有 113 个测试通过
+- [x] 所有 114 个测试通过
 - [x] GitHub API fallback 已将设置中心本机备份恢复发布到远程 `hermeswork` / `Desktop/study/webdemo/`，MCP 凭据仍待修复
 - [x] 清理 ignored 生成产物与冗长本地 QA 路径记录（`.next` / `output` / `.playwright-mcp` / `test-results` / 旧 SQLite 本地数据）
 - [x] 删除过时维护交接稿 `docs/maintenance/next-agent-prompt.md`；当前维护入口收敛到 README + handoff/progress/task-board
@@ -94,6 +95,7 @@ Last updated: `2026-06-09`
 - [x] 设备控制 pending 反馈已通过组件回归、全量 Vitest、lint、build 和 polling production smoke
 - [x] 设备命令生命周期反馈已通过组件回归、全量 Vitest、lint、build 和真实 polling delivered production smoke
 - [x] 命令历史 lifecycle summary 语义已通过组件回归、全量 Vitest、lint、build 和真实 polling rendered smoke
+- [x] 设置页恢复出厂应用内确认已通过组件回归、全量 Vitest、lint、build 和 production rendered smoke
 
 ## Android / App Packaging
 

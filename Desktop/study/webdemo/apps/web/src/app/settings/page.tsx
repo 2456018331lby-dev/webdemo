@@ -294,6 +294,7 @@ function formatLastSeen(timestamp: string): string {
 export default function SettingsPage() {
   const [devices, setDevices] = useState<DeviceConfig[]>(seedDevices);
   const [selectedDevice, setSelectedDevice] = useState<DeviceConfig | null>(null);
+  const [factoryResetTarget, setFactoryResetTarget] = useState<DeviceConfig | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", room: "" });
   const [showAddDevice, setShowAddDevice] = useState(false);
@@ -795,17 +796,25 @@ export default function SettingsPage() {
   }
 
   function handleFactoryReset(device: DeviceConfig) {
-    if (window.confirm(`确定要将 ${device.name} 恢复出厂设置吗？这将清除所有配置。`)) {
-      showOperationResult(`🔄 正在恢复 ${device.name} 出厂设置...`, 1800);
-      window.setTimeout(() => {
-        setDevices((current) =>
-          current.map((item) =>
-            item.id === device.id ? { ...item, online: false, room: "未分配", lastSeen: new Date().toISOString() } : item
-          )
-        );
-        showOperationResult(`✅ ${device.name} 已恢复出厂设置`);
-      }, 1200);
+    setFactoryResetTarget(device);
+  }
+
+  function confirmFactoryReset() {
+    if (!factoryResetTarget) {
+      return;
     }
+
+    const device = factoryResetTarget;
+    setFactoryResetTarget(null);
+    showOperationResult(`🔄 正在恢复 ${device.name} 出厂设置...`, 1800);
+    window.setTimeout(() => {
+      setDevices((current) =>
+        current.map((item) =>
+          item.id === device.id ? { ...item, online: false, room: "未分配", lastSeen: new Date().toISOString() } : item
+        )
+      );
+      showOperationResult(`✅ ${device.name} 已恢复出厂设置`);
+    }, 1200);
   }
 
   return (
@@ -1613,6 +1622,53 @@ export default function SettingsPage() {
               </button>
               <button className="btn btn-ghost" onClick={() => setIsEditing(false)}>
                 取消
+              </button>
+            </div>
+          </section>
+        </>
+      )}
+
+      {factoryResetTarget && (
+        <>
+          <div className="settings-backdrop" onClick={() => setFactoryResetTarget(null)} />
+          <section
+            className="card settings-modal settings-modal--danger"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="factory-reset-title"
+          >
+            <div className="settings-danger-dialog">
+              <div className="settings-danger-dialog__icon">⚠️</div>
+              <div>
+                <p className="info-label">危险操作确认</p>
+                <h2 id="factory-reset-title" className="card-title card-title--md">恢复出厂设置</h2>
+                <p className="card-subtitle">
+                  将 {factoryResetTarget.name} 恢复到未分配状态，并清除当前房间配置。该操作用于重新配网或硬件移交前确认。
+                </p>
+              </div>
+            </div>
+
+            <div className="settings-danger-summary">
+              <div>
+                <span>设备</span>
+                <strong>{factoryResetTarget.name}</strong>
+              </div>
+              <div>
+                <span>当前位置</span>
+                <strong>{factoryResetTarget.home} / {factoryResetTarget.room}</strong>
+              </div>
+              <div>
+                <span>恢复后</span>
+                <strong>离线 · 未分配</strong>
+              </div>
+            </div>
+
+            <div className="settings-actions-row">
+              <button className="btn btn-ghost" onClick={() => setFactoryResetTarget(null)}>
+                取消
+              </button>
+              <button className="btn btn-primary btn-danger-action" onClick={confirmFactoryReset}>
+                确认恢复出厂
               </button>
             </div>
           </section>

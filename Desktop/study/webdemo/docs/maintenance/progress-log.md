@@ -1,5 +1,31 @@
 # Progress Log
 
+## 2026-06-09 (设置页危险操作确认)
+
+### 优化目标
+- 提升设置中心设备维护体验：恢复出厂属于危险操作，不应依赖浏览器原生 `window.confirm`
+- 保持 PWA / 移动端视觉一致性，让危险操作确认、取消和执行结果都在应用内可见
+- 补一条回归测试，防止后续恢复出厂流程退回不可控的原生确认框
+
+### 代码变更
+- `SettingsPage` 新增 `factoryResetTarget` 状态
+- “恢复出厂”按钮改为打开应用内 `role="dialog"` 确认框；取消关闭确认框，不改变设备
+- 确认后复用原状态变更：设备改为离线、房间改为“未分配”，并显示操作状态
+- `globals.css` 新增危险确认框、摘要面板和 danger primary action 样式，移动端摘要自动纵向排列
+- 新增 `apps/web/src/app/settings/settings-page.test.tsx`，覆盖应用内确认、取消、确认恢复、设备状态变化，并断言没有调用 `window.confirm`
+
+### 验证
+- `npm test -- --run apps/web/src/app/settings/settings-page.test.tsx`：1 file / 1 test 通过
+- `npm test -- --run`：25 files / 114 tests 通过
+- `npm run lint`：通过
+- `npm run build`：通过，随后删除 `apps/web/.next/`
+- production smoke：桌面 `1366x900` 与移动端 `390x844` 均验证 `/settings` 打开应用内“恢复出厂设置”对话框，不触发原生 browser dialog；确认后主灯继电器显示“离线 / 未分配”，无横向溢出
+
+### GitHub 状态
+- 本轮仍按约定优先尝试 GitHub MCP；若继续返回 `Bad credentials`，使用 GitHub CLI Git Data API fallback 非强推发布
+
+---
+
 ## 2026-06-09 (命令历史生命周期语义)
 
 ### 优化目标
