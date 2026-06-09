@@ -82,7 +82,7 @@ export function createNextSettingsDeviceId(devices: SettingsDeviceConfig[]): str
   return `device-custom-${nextIndex}`;
 }
 
-function normalizeSettingsDevicesState(value: unknown): SettingsDevicesState | null {
+export function normalizeSettingsDevicesState(value: unknown): SettingsDevicesState | null {
   if (
     !isRecord(value) ||
     value.schemaVersion !== SETTINGS_DEVICES_SCHEMA_VERSION ||
@@ -93,10 +93,16 @@ function normalizeSettingsDevicesState(value: unknown): SettingsDevicesState | n
     return null;
   }
 
+  const devices = normalizeSettingsDevices(value.devices);
+
+  if (devices.length === 0) {
+    return null;
+  }
+
   return {
     schemaVersion: SETTINGS_DEVICES_SCHEMA_VERSION,
     updatedAt: value.updatedAt,
-    devices: normalizeSettingsDevices(value.devices)
+    devices
   };
 }
 

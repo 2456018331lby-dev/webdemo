@@ -1,5 +1,32 @@
 # Progress Log
 
+## 2026-06-09 (设备维护备份恢复校验)
+
+### 优化目标
+- 防止坏备份把无效的 `smart-home-settings-devices-v1` 写回本机状态
+- 让本机备份恢复预览准确标记“设备维护状态”是否可恢复，避免显示可恢复但页面实际回退 seed 清单
+- 保持当前恢复流程和 UI 不扩张，只增强 schema 校验和测试覆盖
+
+### 代码变更
+- `settings-devices.ts` 导出 `normalizeSettingsDevicesState()`，并要求设备维护状态至少包含 1 个有效设备
+- `local-app-backup.ts` 在生成恢复计划时对 `SETTINGS_DEVICES_STORAGE_KEY` 走设备维护 schema 校验
+- 无效设备维护备份会显示为 `invalid`，原因是“备份中的设备维护状态不符合当前 schema，已跳过”，并且不会覆盖当前本机状态
+- 有效设备维护备份会在恢复值中写入归一化后的状态，减少坏字段或重复设备 ID 继续传播
+
+### 测试
+- `settings-devices.test.ts` 新增状态归一化测试，覆盖混合有效/无效设备和全无效设备
+- `local-app-backup.test.ts` 新增坏设备维护备份跳过测试，覆盖现有本机状态不被覆盖
+
+### 验证
+- `npm test -- --run apps/web/src/lib/settings-devices.test.ts apps/web/src/lib/local-app-backup.test.ts`：2 files / 10 tests 通过
+- `npm run lint`：通过
+- `npm run build`：通过
+- `npm test -- --run --maxWorkers=1`：26 files / 122 tests 通过；普通全量测试曾在与 lint/build 并行时触发环境 OOM，后续全量验证改为顺序且限制 worker
+- `node ./node_modules/@playwright/test/cli.js test tests/e2e/prod-shell.spec.ts`：15 tests 通过；一次 `.cmd` 包装执行曾受环境资源影响失败，改用 Node 直接调用 Playwright CLI 后通过
+- 验证后已删除 `apps/web/.next/` 和 `test-results/`；未发现 `coverage`、`playwright-report`、`output`、`.playwright-mcp` 或 `.omx`
+
+---
+
 ## 2026-06-09 (设置设备维护恢复默认入口)
 
 ### 优化目标

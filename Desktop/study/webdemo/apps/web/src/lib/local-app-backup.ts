@@ -8,7 +8,7 @@ import {
   getPushEndpointFingerprint,
   parsePushSubscriptionRecord
 } from "./push-notifications";
-import { SETTINGS_DEVICES_STORAGE_KEY } from "./settings-devices";
+import { SETTINGS_DEVICES_STORAGE_KEY, normalizeSettingsDevicesState } from "./settings-devices";
 import { USER_PREFERENCES_STORAGE_KEY } from "./user-preferences";
 
 export const LOCAL_APP_BACKUP_SCHEMA_VERSION = 1;
@@ -142,10 +142,10 @@ export function createLocalAppBackupRestorePlan(
       return createRestoreItem(entry, "missing", "备份中该状态项为空，保留当前本机状态", null, storage);
     }
 
-    const restoreValue = stringifyRestorableValue(entry.value);
+    const restoreValue = stringifyRestorableValue(entry.key, entry.value);
 
     if (restoreValue === null) {
-      return createRestoreItem(entry, "invalid", "备份值不是可恢复的 JSON 状态", null, storage);
+      return createRestoreItem(entry, "invalid", getInvalidRestoreReason(entry.key), null, storage);
     }
 
     const currentRaw = storage.getItem(entry.key);
@@ -323,13 +323,26 @@ function createRestoreItem(
   };
 }
 
-function stringifyRestorableValue(value: unknown): string | null {
+function stringifyRestorableValue(key: string, value: unknown): string | null {
   if (isParseErrorValue(value)) {
     return null;
   }
 
+  if (key === SETTINGS_DEVICES_STORAGE_KEY) {
+    const normalizedState = normalizeSettingsDevicesState(value);
+    return normalizedState ? JSON.stringify(normalizedState) : null;
+  }
+
   const serialized = JSON.stringify(value);
   return typeof serialized === "string" ? serialized : null;
+}
+
+function getInvalidRestoreReason(key: string): string {
+  if (key === SETTINGS_DEVICES_STORAGE_KEY) {
+    return "备份中的设备维护状态不符合当前 schema，已跳过";
+  }
+
+  return "备份值不是可恢复的 JSON 状态";
 }
 
 function isParseErrorValue(value: unknown): boolean {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   SETTINGS_DEVICES_SCHEMA_VERSION,
   createNextSettingsDeviceId,
+  normalizeSettingsDevicesState,
   parseSettingsDevices,
   serializeSettingsDevices,
   type SettingsDeviceConfig
@@ -48,6 +49,30 @@ describe("settings devices", () => {
     expect(parseSettingsDevices(JSON.stringify({ schemaVersion: 999, devices: [] }), [seedDevice])).toEqual([
       seedDevice
     ]);
+  });
+
+  it("normalizes settings-device state only when at least one device is valid", () => {
+    expect(
+      normalizeSettingsDevicesState({
+        schemaVersion: SETTINGS_DEVICES_SCHEMA_VERSION,
+        updatedAt: "2026-06-09T08:00:00.000Z",
+        devices: [
+          { id: "", name: "bad", type: "relay-controller" },
+          { ...seedDevice, name: " 主灯继电器 Pro " }
+        ]
+      })
+    ).toEqual(
+      expect.objectContaining({
+        devices: [expect.objectContaining({ id: "device-relay-01", name: "主灯继电器 Pro" })]
+      })
+    );
+    expect(
+      normalizeSettingsDevicesState({
+        schemaVersion: SETTINGS_DEVICES_SCHEMA_VERSION,
+        updatedAt: "2026-06-09T08:00:00.000Z",
+        devices: [{ id: "", name: "bad", type: "relay-controller" }]
+      })
+    ).toBeNull();
   });
 
   it("uses the highest custom device index for new local devices", () => {

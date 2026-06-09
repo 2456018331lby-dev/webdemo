@@ -210,6 +210,51 @@ describe("local app backup", () => {
     expect(JSON.parse(storage.getItem(SETTINGS_DEVICES_STORAGE_KEY) ?? "{}")).toEqual(deviceState);
   });
 
+  it("rejects invalid settings device maintenance restore values", () => {
+    const currentDeviceState = JSON.stringify({
+      schemaVersion: 1,
+      updatedAt: "2026-06-09T07:00:00.000Z",
+      devices: [
+        {
+          id: "device-relay-01",
+          name: "当前设备",
+          type: "relay-controller",
+          room: "客厅",
+          home: "温馨公寓",
+          online: true,
+          lastSeen: "2026-06-09T07:00:00.000Z",
+          firmware: "v1.2.3",
+          ip: "192.168.1.101",
+          mac: "AA:BB:CC:DD:EE:01"
+        }
+      ]
+    });
+    const backup = buildLocalAppBackup(
+      createStorage({
+        [SETTINGS_DEVICES_STORAGE_KEY]: JSON.stringify({
+          schemaVersion: 1,
+          updatedAt: "2026-06-09T08:00:00.000Z",
+          devices: [{ id: "", name: "bad", type: "relay-controller" }]
+        })
+      }),
+      new Date("2026-06-09T08:05:00.000Z")
+    );
+    const storage = createMutableStorage({
+      [SETTINGS_DEVICES_STORAGE_KEY]: currentDeviceState
+    });
+    const plan = createLocalAppBackupRestorePlan(storage, backup);
+
+    expect(plan.items.find((item) => item.key === SETTINGS_DEVICES_STORAGE_KEY)).toEqual(
+      expect.objectContaining({
+        status: "invalid",
+        reason: "备份中的设备维护状态不符合当前 schema，已跳过",
+        restoreValue: null
+      })
+    );
+    expect(applyLocalAppBackupRestorePlan(storage, plan)).toBe(0);
+    expect(storage.getItem(SETTINGS_DEVICES_STORAGE_KEY)).toBe(currentDeviceState);
+  });
+
   it("rejects malformed backup text and skips parse-error values", () => {
     expect(parseLocalAppBackupText("not json")).toBeNull();
     expect(parseLocalAppBackupText(JSON.stringify({ schemaVersion: 999, entries: [] }))).toBeNull();
