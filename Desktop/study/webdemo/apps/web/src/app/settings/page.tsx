@@ -324,18 +324,7 @@ export default function SettingsPage() {
   const localBackupInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const restoredNotificationView = parseNotificationInboxView(
-      window.localStorage.getItem(NOTIFICATION_INBOX_VIEW_STORAGE_KEY)
-    );
-
-    if (restoredNotificationView) {
-      setNotificationFilter(restoredNotificationView.filter);
-      setNotificationAdvancedFilters(restoredNotificationView.advancedFilters);
-      setSavedNotificationView(restoredNotificationView);
-    }
-
-    setPreferences(parseUserPreferences(window.localStorage.getItem(USER_PREFERENCES_STORAGE_KEY)));
-    setNotificationItems(parseNotificationInbox(window.localStorage.getItem(NOTIFICATION_INBOX_STORAGE_KEY)));
+    refreshLocalStateFromStorage();
     setPreferencesHydrated(true);
     void refreshPushState();
   }, []);

@@ -46,6 +46,7 @@ Read these first:
 21. 设置中心本机备份导出：`/settings` 新增本机操作状态 JSON 备份卡片，汇总偏好、收藏、筛选视图、通知队列和推送同步快照；Push subscription 只导出端点指纹和 key 存在状态，不导出 endpoint / p256dh / auth 原文
 22. 设置中心本机备份恢复：`/settings` 支持选择备份 JSON、预览可恢复/覆盖/跳过项，并只写回非敏感本机状态；Push subscription 脱敏摘要明确跳过，避免误恢复浏览器推送密钥
 23. 本地生成产物瘦身：清理 ignored 的 Playwright/MCP 快照、e2e 输出、Next build 产物、旧本地 SQLite 数据和运行日志；维护文档删除本地截图逐条路径与重复 push 失败日志
+24. 设置中心本机状态刷新收敛：首次加载和备份恢复后刷新改为复用同一个 `refreshLocalStateFromStorage()` 路径，减少 `localStorage` 读取逻辑重复，降低后续新增本机状态项时漏同步风险
 
 ### 2026-06-01 生产化基础
 
@@ -122,6 +123,7 @@ Read these first:
 - `npm run lint`: 通过
 - `node ./node_modules/vitest/vitest.mjs run`: 23 files / 98 tests 全部通过
 - `npm run build`: 通过
+- 2026-06-09 设置状态刷新收敛复核：`npm test -- --run apps/web/src/lib/local-app-backup.test.ts apps/web/src/lib/user-preferences.test.ts apps/web/src/lib/notification-inbox.test.ts apps/web/src/lib/push-notifications.test.ts` 通过，随后全量 `npm test -- --run` 23 files / 98 tests 通过；`npm run lint` 和 `npm run build` 通过，build 后已删除 `apps/web/.next/`
 - Playwright QA:
   - `tests/e2e/prod-shell.spec.ts`: 15 passed
   - 首页 production PWA 资产通过；“优先处理”卡片显示 `1 台设备离线` 并提供“打开总览”CTA

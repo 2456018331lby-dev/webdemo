@@ -49,6 +49,7 @@ Last updated: `2026-06-09`
 - [x] 离线页 PWA 安装提示 compact 化，避免移动端遮挡恢复动作
 - [x] 设置中心本机数据备份导出卡片（偏好/收藏/筛选视图/通知队列/推送摘要）
 - [x] 设置中心本机备份恢复预览与安全恢复（覆盖预览 / 脱敏订阅跳过 / 移动端适配）
+- [x] 设置中心本机状态刷新逻辑收敛（首次加载 / 备份恢复复用同一刷新路径）
 
 ### 数据/测试
 - [x] 中文化 mock 数据
@@ -82,6 +83,7 @@ Last updated: `2026-06-09`
 - [x] 所有 98 个测试通过
 - [x] GitHub API fallback 已将设置中心本机备份恢复发布到远程 `hermeswork` / `Desktop/study/webdemo/`，MCP 凭据仍待修复
 - [x] 清理 ignored 生成产物与冗长本地 QA 路径记录（`.next` / `output` / `.playwright-mcp` / `test-results` / 旧 SQLite 本地数据）
+- [x] 设置中心状态刷新 refactor 已通过相关本机状态单测、全量 Vitest、lint 和 build
 
 ## Android / App Packaging
 

@@ -1,5 +1,30 @@
 # Progress Log
 
+## 2026-06-09 (设置中心本机状态刷新收敛)
+
+### 清理目标
+- 回应“减少冗余和垃圾文件”的维护方向，本轮不新增页面、不新增依赖、不保留截图或构建产物
+- 选择低风险逻辑收敛：`/settings` 首次加载和本机备份恢复后都需要从 `localStorage` 读取偏好、通知队列、通知筛选视图和推送同步快照
+
+### 代码变更
+- `apps/web/src/app/settings/page.tsx` 删除首次加载 effect 中重复的 `localStorage` 读取分支
+- 首次加载改为调用已有 `refreshLocalStateFromStorage()`，与备份恢复后的刷新入口保持一致
+- 该函数会在没有保存通知视图时回到默认筛选，后续增加本机状态项时只需要维护一处刷新路径
+
+### 验证
+- `npm test -- --run apps/web/src/lib/local-app-backup.test.ts apps/web/src/lib/user-preferences.test.ts apps/web/src/lib/notification-inbox.test.ts apps/web/src/lib/push-notifications.test.ts`：4 files / 21 tests 通过
+- `npm run lint`：通过
+- `npm test -- --run`：23 files / 98 tests 通过
+- `npm run build`：通过，`/settings` page size 约 17.6 kB
+- `git diff --check`：仅提示 Windows 工作区 LF/CRLF 转换，无 whitespace error
+- build 后已删除 `apps/web/.next/`，当前未保留新的测试截图或构建输出
+
+### GitHub 状态
+- 本轮仍按约定优先尝试 GitHub MCP；若继续返回 `Bad credentials`，使用 GitHub CLI Git Data API fallback 非强推发布
+- 实际提交哈希以 Git history 和最终发布回执为准，避免在同一提交内写入会自我失效的哈希
+
+---
+
 ## 2026-06-09 (本地生成产物与维护文档瘦身)
 
 ### 清理范围
