@@ -25,6 +25,7 @@ export type RuntimeMessage =
   | { type: 'CONTENT_EXTRACT_JOBS' }
   | { type: 'CONTENT_PREPARE_APPLICATION'; job: JobPosting; mode: Exclude<ApplicationMode, 'dry-run'> }
   | { type: 'CONTENT_EXTRACTION_RESULT'; result: AdapterExtractionResult }
+  | { type: 'CONTENT_RESEARCH_RESULT'; query: string; sourceUrl: string; sourceTitle: string; pageText: string }
   | { type: 'CONTENT_SAFETY_SNAPSHOT'; snapshot: PageSafetySnapshot }
   | { type: 'QUEUE_JOBS'; jobs: JobPosting[] }
   | { type: 'RUN_NEXT_APPLICATION' }

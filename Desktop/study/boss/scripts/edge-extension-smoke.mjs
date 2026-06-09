@@ -77,6 +77,8 @@ try {
       await closeTarget(port, fakeApplyPage.target.id);
     }
 
+    const autoResearch = await verifyAutoResearchCapture(client, port, resume, nowIso);
+
     await clearExtensionStorage(client);
     await sendRuntimeMessage(client, { type: 'SAVE_RESUME', resume });
     const queued = await sendRuntimeMessage(client, { type: 'QUEUE_JOBS', jobs });
@@ -108,6 +110,7 @@ try {
       defaultMode: defaultState.state.policy.mode,
       scannedJobQueued: true,
       autoApplyClicked: true,
+      autoResearchCaptured: autoResearch.recordCount,
       rankedJobIds: queuedIds,
       rescannedTopJobId: rescannedItems[0]?.job?.id,
       highSalaryScore: queuedItems[0].score.score,
@@ -132,7 +135,8 @@ async function openFakeBossSearchPage(port) {
     'https://www.zhipin.com/web/geek/job?query=%E5%89%8D%E7%AB%AF',
     makeFakeBossSearchHtml(),
     '高薪云科技',
-    'Fake BOSS page did not render expected job card.'
+    'Fake BOSS page did not render expected job card.',
+    { urlPattern: 'https://www.zhipin.com/*', requestUrlIncludes: 'zhipin.com' }
   );
 }
 
@@ -142,22 +146,36 @@ async function openFakeBossApplyPage(port) {
     'https://www.zhipin.com/job_detail/edge-auto-apply.html',
     makeFakeBossApplyHtml(),
     '立即沟通',
-    'Fake BOSS apply page did not render expected apply target.'
+    'Fake BOSS apply page did not render expected apply target.',
+    { urlPattern: 'https://www.zhipin.com/*', requestUrlIncludes: 'zhipin.com' }
   );
 }
 
-async function openInterceptedPage(port, url, html, marker, errorMessage) {
+async function openFakeBingSearchPage(port, query) {
+  return openInterceptedPage(
+    port,
+    `https://www.bing.com/search?q=${encodeURIComponent(query)}`,
+    makeFakeBingSearchHtml(),
+    '全网资料科技',
+    'Fake Bing page did not render expected research snippets.',
+    { urlPattern: 'https://www.bing.com/*', requestUrlIncludes: 'bing.com' }
+  );
+}
+
+async function openInterceptedPage(port, url, html, marker, errorMessage, options) {
   const target = await fetchJson(`http://127.0.0.1:${port}/json/new?${encodeURIComponent('about:blank')}`, { method: 'PUT' });
   const client = await connectCdp(target.webSocketDebuggerUrl);
+  const urlPattern = options?.urlPattern ?? '*';
+  const requestUrlIncludes = options?.requestUrlIncludes ?? new URL(url).hostname;
 
   try {
     await client.send('Page.enable');
     await client.send('Runtime.enable');
     await client.send('Fetch.enable', {
-      patterns: [{ urlPattern: 'https://www.zhipin.com/*', requestStage: 'Request' }]
+      patterns: [{ urlPattern, requestStage: 'Request' }]
     });
 
-    const requestPaused = client.waitForEvent('Fetch.requestPaused', (event) => event.params.request.url.includes('zhipin.com'), 8000);
+    const requestPaused = client.waitForEvent('Fetch.requestPaused', (event) => event.params.request.url.includes(requestUrlIncludes), 8000);
     const navigation = client.send('Page.navigate', { url });
     const paused = await requestPaused;
     const loadEvent = client.waitForEvent('Page.loadEventFired', () => true, 8000);
@@ -234,6 +252,74 @@ function makeFakeBossApplyHtml() {
     </article>
   </body>
 </html>`;
+}
+
+function makeFakeBingSearchHtml() {
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <title>全网资料科技 前端工程师 - Bing</title>
+  </head>
+  <body>
+    <main id="b_results">
+      <ol>
+        <li class="b_algo">
+          <h2><a href="https://example.com/salary">全网资料科技前端工程师薪资福利</a></h2>
+          <p>全网资料科技 前端工程师 薪资 35-45K，16薪，五险一金，餐补，定期体检。</p>
+        </li>
+        <li class="b_algo">
+          <h2><a href="https://example.com/review">全网资料科技员工评价</a></h2>
+          <p>员工评价提到周末双休，弹性工作，带薪年假，加班较少，未见欠薪风险。</p>
+        </li>
+      </ol>
+    </main>
+  </body>
+</html>`;
+}
+
+async function verifyAutoResearchCapture(client, port, resume, nowIso) {
+  await clearExtensionStorage(client);
+  await sendRuntimeMessage(client, { type: 'SAVE_RESUME', resume });
+  await sendRuntimeMessage(client, {
+    type: 'SET_POLICY',
+    policy: {
+      dailyLimit: 20,
+      minMinutesBetweenActions: 3,
+      maxQueueSize: 100,
+      mode: 'auto',
+      requireResearchBeforeAuto: true
+    }
+  });
+
+  const researchJob = makeAutoResearchJob(nowIso);
+  await sendRuntimeMessage(client, { type: 'QUEUE_JOBS', jobs: [researchJob] });
+  const missingResearch = await sendRuntimeMessage(client, { type: 'RUN_NEXT_APPLICATION' });
+  const pausedItem = missingResearch.state?.queue?.items?.find((item) => item.job.id === researchJob.id);
+  assert(pausedItem?.status === 'paused', `Expected missing research to pause auto item, got ${pausedItem?.status}`);
+  assert(pausedItem?.pauseReason === 'missing-research', `Expected missing-research pause, got ${pausedItem?.pauseReason}`);
+
+  const target = missingResearch.state?.pendingResearchTargets?.find((item) => item.jobId === researchJob.id);
+  assert(target?.queries?.length > 0, `Expected pending research queries for auto job, got ${JSON.stringify(target)}`);
+
+  const fakeBingPage = await openFakeBingSearchPage(port, target.queries[0]);
+  try {
+    const researchedState = await waitForState(client, (state) => {
+      const record = state.research?.find((item) => item.companyName === researchJob.company.name && item.salary?.min === 35_000);
+      const item = state.queue?.items?.find((queueItem) => queueItem.job.id === researchJob.id);
+      return Boolean(record?.bonus?.includes('16薪') && record?.annualLeave?.includes('年假') && item?.status === 'queued');
+    });
+    const record = researchedState.research.find((item) => item.companyName === researchJob.company.name && item.salary?.min === 35_000);
+    const recoveredItem = researchedState.queue.items.find((item) => item.job.id === researchJob.id);
+    assert(record?.benefits?.includes('五险一金'), `Expected auto research benefits, got ${JSON.stringify(record)}`);
+    assert(record?.restSchedule?.includes('双休'), `Expected auto research rest schedule, got ${JSON.stringify(record)}`);
+    assert(recoveredItem?.pauseReason === undefined, `Expected auto research to clear pause reason, got ${recoveredItem?.pauseReason}`);
+    assert(!researchedState.pendingResearchTargets.some((item) => item.jobId === researchJob.id), 'Expected completed research target to be removed.');
+    return { recordCount: researchedState.research.length };
+  } finally {
+    fakeBingPage.client.close();
+    await closeTarget(port, fakeBingPage.target.id);
+  }
 }
 
 async function triggerScanActiveTab(client, port, targetId) {
@@ -523,6 +609,22 @@ function makeFakeApplyJob(nowIso) {
     requirements: ['React', 'TypeScript'],
     tags: ['React', 'TypeScript', '五险一金', '年终奖', '双休', '带薪年假'],
     url: 'https://www.zhipin.com/job_detail/edge-auto-apply.html',
+    scrapedAt: nowIso
+  };
+}
+
+function makeAutoResearchJob(nowIso) {
+  return {
+    id: 'edge-auto-research',
+    platform: 'boss',
+    title: '前端工程师',
+    company: { name: '全网资料科技', industry: 'SaaS', location: '上海', tags: [] },
+    location: '上海',
+    salary: { min: 20_000, max: 25_000, currency: 'CNY', period: 'month', raw: '20-25K' },
+    description: 'React TypeScript 平台研发。',
+    requirements: ['React', 'TypeScript'],
+    tags: ['React', 'TypeScript'],
+    url: 'https://www.zhipin.com/job_detail/edge-auto-research.html',
     scrapedAt: nowIso
   };
 }

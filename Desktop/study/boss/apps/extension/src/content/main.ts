@@ -30,6 +30,8 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
   return true;
 });
 
+void reportResearchSearchPage().catch(() => undefined);
+
 const APPLY_TEXT_KEYWORDS = ['立即沟通', '投递简历', '立即投递', '申请职位', '申请岗位', '我要应聘', '继续沟通', '沟通', 'apply'];
 const DISABLED_TEXT_KEYWORDS = ['已投递', '已沟通', '停止招聘', '已下线', '不可投递'];
 const SUCCESS_TEXT_KEYWORDS = ['投递成功', '申请成功', '已投递', '已申请', '沟通成功', '已沟通', '简历已发送', '发送成功'];
@@ -200,4 +202,60 @@ function markApplyTarget(element: HTMLElement): void {
 
 function visibleText(element: HTMLElement): string {
   return (element.innerText || element.textContent || element.getAttribute('aria-label') || element.getAttribute('title') || '').replace(/\s+/g, ' ').trim();
+}
+
+async function reportResearchSearchPage(): Promise<void> {
+  const snapshot = createResearchSearchSnapshot();
+  if (!snapshot) return;
+
+  await waitForSearchResults();
+  const refreshedSnapshot = createResearchSearchSnapshot();
+  if (!refreshedSnapshot) return;
+  chrome.runtime.sendMessage({
+    type: 'CONTENT_RESEARCH_RESULT',
+    ...refreshedSnapshot
+  } satisfies RuntimeMessage);
+}
+
+function createResearchSearchSnapshot(): { query: string; sourceUrl: string; sourceTitle: string; pageText: string } | undefined {
+  const url = new URL(window.location.href);
+  if (!url.hostname.endsWith('bing.com') || !url.pathname.startsWith('/search')) return undefined;
+
+  const query = url.searchParams.get('q')?.trim();
+  if (!query) return undefined;
+
+  const resultText = extractSearchResultText();
+  if (!resultText) return undefined;
+
+  return {
+    query,
+    sourceUrl: window.location.href,
+    sourceTitle: document.title,
+    pageText: [`搜索词：${query}`, resultText].join('\n').slice(0, 12_000)
+  };
+}
+
+function extractSearchResultText(): string {
+  const resultNodes = Array.from(document.querySelectorAll<HTMLElement>('li.b_algo, .b_algo, [data-bm], main article')).slice(0, 12);
+  const lines = resultNodes
+    .map((node) => {
+      const link = node.querySelector<HTMLAnchorElement>('a[href]');
+      const title = visibleText(node.querySelector<HTMLElement>('h2, h3, a[href]') ?? node);
+      const snippet = visibleText(node).slice(0, 900);
+      return [title, link?.href, snippet].filter(Boolean).join(' ');
+    })
+    .filter(Boolean);
+
+  if (lines.length > 0) return lines.join('\n');
+
+  const blockedSelectors = 'script, style, noscript, svg, canvas, iframe, nav, footer, header, aside';
+  const clone = document.body.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll(blockedSelectors).forEach((node) => node.remove());
+  return clone.innerText.replace(/\s+/g, ' ').trim().slice(0, 6000);
+}
+
+function waitForSearchResults(): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, 800);
+  });
 }

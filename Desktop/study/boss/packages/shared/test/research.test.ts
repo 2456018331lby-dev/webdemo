@@ -254,6 +254,30 @@ describe('company research', () => {
     expect(record.confidence).toBe('high');
   });
 
+  it('creates complete research coverage from search result snippets', () => {
+    const record = createResearchFromPage({
+      companyName: '星河科技',
+      jobTitle: '前端工程师',
+      sourceUrl: 'https://www.bing.com/search?q=%E6%98%9F%E6%B2%B3%E7%A7%91%E6%8A%80%20%E5%89%8D%E7%AB%AF%E5%B7%A5%E7%A8%8B%E5%B8%88',
+      sourceTitle: '星河科技 前端工程师 - 搜索',
+      capturedAt: '2026-06-08T00:00:00.000Z',
+      pageText: [
+        '搜索词：星河科技 前端工程师 薪资 工资 待遇',
+        '招聘页显示星河科技前端工程师薪资 35-45K，16薪，五险一金，餐补，定期体检。',
+        '员工评价提到周末双休，带薪年假，弹性工作，加班较少。',
+        '公开评价未见裁员、欠薪等明显风险。'
+      ].join('\n')
+    });
+    const coverage = getResearchCoverageForJob(job, [record]);
+
+    expect(record.salary).toMatchObject({ min: 35_000, max: 45_000, period: 'month' });
+    expect(record.bonus).toContain('16薪');
+    expect(record.benefits).toEqual(expect.arrayContaining(['五险一金', '餐补', '定期体检']));
+    expect(record.restSchedule).toContain('双休');
+    expect(record.annualLeave).toContain('年假');
+    expect(coverage.complete).toBe(true);
+  });
+
   it('penalizes negative external evidence', () => {
     const record = parseCompanyResearch({
       companyName: '星河科技',

@@ -9,7 +9,8 @@
     "https://*.zhipin.com/*",
     "https://*.lagou.com/*",
     "https://*.liepin.com/*",
-    "https://*.linkedin.com/*"
+    "https://*.linkedin.com/*",
+    "https://*.bing.com/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
@@ -28,7 +29,8 @@
         "https://*.zhipin.com/*",
         "https://*.lagou.com/*",
         "https://*.liepin.com/*",
-        "https://*.linkedin.com/*"
+        "https://*.linkedin.com/*",
+        "https://*.bing.com/*"
       ],
       "js": ["content/main.js"],
       "run_at": "document_idle"

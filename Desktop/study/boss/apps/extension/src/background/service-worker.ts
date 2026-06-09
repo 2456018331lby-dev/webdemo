@@ -12,6 +12,7 @@ import {
   getResearchCoverageForJob,
   markQueueItemAttempted,
   reconcileScoredQueue,
+  researchCriteria,
   rotateDay,
   scoreJob
 } from '@job-assistant/shared';
@@ -128,16 +129,31 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
     }
 
     case 'OPEN_RESEARCH_SEARCH': {
+      const nowIso = new Date().toISOString();
       const query = buildResearchQuery(message.companyName, message.jobTitle);
       const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
+      const state = await updateState((current) => ({
+        ...current,
+        pendingResearchTargets: upsertPendingResearchTarget(
+          current.pendingResearchTargets,
+          createPendingResearchTarget({
+            companyName: message.companyName,
+            jobTitle: message.jobTitle,
+            missingKeys: researchCriteria.map((criterion) => criterion.key),
+            missingLabels: researchCriteria.map((criterion) => criterion.label),
+            queries: [{ key: 'salary', label: '全网资料', query }],
+            source: 'manual-search',
+            nowIso
+          })
+        )
+      }));
       await chrome.tabs.create({ url, active: true });
-      return { ok: true, message: `已打开资料搜索：${query}` };
+      return { ok: true, state, message: `已打开资料搜索：${query}` };
     }
 
     case 'OPEN_RESEARCH_SEARCHES': {
       const nowIso = new Date().toISOString();
       const queries = buildResearchQueries(message.companyName, message.jobTitle, message.criteria);
-      await openResearchQueryTabs(queries);
       const state = await updateState((current) => ({
         ...current,
         pendingResearchTargets: upsertPendingResearchTarget(
@@ -155,6 +171,7 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
           })
         )
       }));
+      await openResearchQueryTabs(queries);
       return { ok: true, state, message: `已打开 ${queries.length} 个资料搜索。` };
     }
 
@@ -215,6 +232,31 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
       return { ok: true, state };
     }
 
+    case 'CONTENT_RESEARCH_RESULT': {
+      const nowIso = new Date().toISOString();
+      const state = await updateState((current) => {
+        const target = findPendingResearchTargetForQuery(current.pendingResearchTargets, message.query);
+        if (!target) {
+          return current;
+        }
+
+        const record = createResearchFromPage({
+          companyName: target.companyName,
+          jobTitle: target.jobTitle,
+          sourceUrl: message.sourceUrl,
+          sourceTitle: message.sourceTitle,
+          pageText: message.pageText,
+          capturedAt: nowIso
+        });
+        return applyResearchRecord(current, record, nowIso, {
+          action: 'research.auto-saved',
+          message: `已自动采集 ${target.companyName} 的搜索资料并重排队列。`,
+          metadata: { query: message.query, sourceUrl: message.sourceUrl, sourceTabId: sender.tab?.id }
+        });
+      });
+      return { ok: true, state };
+    }
+
     case 'QUEUE_JOBS': {
       const nowIso = new Date().toISOString();
       const state = await updateState((current) => {
@@ -254,7 +296,8 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
 }
 
 async function runNextApplicationAction(nowIso: string, source: 'manual' | 'automation', modeOverride?: ApplicationMode): Promise<ExtensionState> {
-  return updateState(async (current) => {
+  let researchQueriesToOpen: ResearchQuery[] = [];
+  const state = await updateState(async (current) => {
     const queue = rotateDay(current.queue, nowIso);
     const effectivePolicy = modeOverride ? { ...current.policy, mode: modeOverride } : current.policy;
     const policyDecision = enforceQueuePolicy(effectivePolicy, queue.applicationsToday);
@@ -290,13 +333,13 @@ async function runNextApplicationAction(nowIso: string, source: 'manual' | 'auto
     if (shouldPauseForMissingResearch(runnable.job, effectivePolicy, current.research)) {
       const coverage = getResearchCoverageForJob(runnable.job, current.research);
       const queries = getMissingResearchQueriesForJob(runnable.job, current.research);
-      const openedSearches = await openResearchQueryTabs(queries);
+      researchQueriesToOpen = queries;
       const attempt: ApplyAttemptResult = {
         ok: false,
         mode: effectivePolicy.mode,
         jobId: runnable.job.id,
         pauseReason: 'missing-research',
-        message: `自动模式缺少全网资料（${coverage.missingLabels.join('、')}）：${runnable.job.company.name} / ${runnable.job.title}。已打开 ${openedSearches} 个搜索页。`
+        message: `自动模式缺少全网资料（${coverage.missingLabels.join('、')}）：${runnable.job.company.name} / ${runnable.job.title}。将打开 ${queries.length} 个搜索页并自动采集结果。`
       };
       return {
         ...current,
@@ -327,7 +370,7 @@ async function runNextApplicationAction(nowIso: string, source: 'manual' | 'auto
             source,
             pauseReason: attempt.pauseReason,
             missingResearch: coverage.missingLabels,
-            openedSearches,
+            openedSearches: queries.length,
             queries: queries.map((query) => query.query)
           }
         })
@@ -352,6 +395,12 @@ async function runNextApplicationAction(nowIso: string, source: 'manual' | 'auto
       })
     };
   });
+
+  if (researchQueriesToOpen.length > 0) {
+    await openResearchQueryTabs(researchQueriesToOpen);
+  }
+
+  return state;
 }
 
 async function startQueueAutomation(): Promise<ExtensionState> {
@@ -433,6 +482,16 @@ async function runScheduledQueueAutomation(): Promise<void> {
   const state = await runNextApplicationAction(new Date().toISOString(), 'automation');
   const latestEntry = state.auditLog[0];
   if (latestEntry?.action === 'apply.recorded') {
+    await scheduleQueueAutomation(state.policy, state.queue);
+    return;
+  }
+
+  if (latestEntry?.action === 'apply.paused' && latestEntry.metadata?.pauseReason === 'missing-research') {
+    await scheduleQueueAutomation(state.policy, state.queue);
+    return;
+  }
+
+  if (latestEntry?.action === 'queue.idle' && state.pendingResearchTargets.length > 0) {
     await scheduleQueueAutomation(state.policy, state.queue);
     return;
   }
@@ -561,27 +620,38 @@ async function injectContentScript(tabId: number): Promise<void> {
 
 async function saveResearchRecord(record: CompanyResearchRecord): Promise<Awaited<ReturnType<typeof loadState>>> {
   const nowIso = new Date().toISOString();
-  return updateState((current) => {
-    const research = [record, ...current.research.filter((item) => item.id !== record.id)].slice(0, 300);
-    const jobs = getKnownJobs(current);
-    const scoredJobs = current.resume ? scoreJobsForResume(jobs, current.resume, current.blacklist, research) : [];
-    return {
-      ...current,
-      jobs,
-      research,
-      queue: current.resume
-        ? reconcileScoredQueue(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy, research })
-        : current.queue,
-      pendingResearchTargets: refreshPendingResearchTargets(current.pendingResearchTargets, jobs, research, nowIso),
-      auditLog: appendAuditLog(current.auditLog, {
-        at: nowIso,
-        level: record.warnings.length > 0 ? 'warning' : 'info',
-        action: 'research.saved',
-        message: `已保存 ${record.companyName} 的全网资料。`,
-        metadata: { sourceUrl: record.sourceUrl, warnings: record.warnings }
-      })
-    };
-  });
+  return updateState((current) => applyResearchRecord(current, record, nowIso, {
+    action: 'research.saved',
+    message: `已保存 ${record.companyName} 的全网资料。`,
+    metadata: { sourceUrl: record.sourceUrl, warnings: record.warnings }
+  }));
+}
+
+function applyResearchRecord(
+  current: ExtensionState,
+  record: CompanyResearchRecord,
+  nowIso: string,
+  audit: { action: string; message: string; metadata?: Record<string, unknown> }
+): ExtensionState {
+  const research = [record, ...current.research.filter((item) => item.id !== record.id)].slice(0, 300);
+  const jobs = getKnownJobs(current);
+  const scoredJobs = current.resume ? scoreJobsForResume(jobs, current.resume, current.blacklist, research) : [];
+  return {
+    ...current,
+    jobs,
+    research,
+    queue: current.resume
+      ? reconcileScoredQueue(rotateDay(current.queue, nowIso), scoredJobs, { nowIso, policy: current.policy, research })
+      : current.queue,
+    pendingResearchTargets: refreshPendingResearchTargets(current.pendingResearchTargets, jobs, research, nowIso),
+    auditLog: appendAuditLog(current.auditLog, {
+      at: nowIso,
+      level: record.warnings.length > 0 ? 'warning' : 'info',
+      action: audit.action,
+      message: audit.message,
+      metadata: { ...audit.metadata, sourceUrl: record.sourceUrl, warnings: record.warnings }
+    })
+  };
 }
 
 function captureResearchPageText(): { url: string; title: string; text: string } {
@@ -649,6 +719,27 @@ function upsertPendingResearchTarget(targets: PendingResearchTarget[], target: P
   const existing = targets.find((item) => item.id === target.id);
   const next = { ...target, createdAt: existing?.createdAt ?? target.createdAt };
   return [next, ...targets.filter((item) => item.id !== target.id)].slice(0, 30);
+}
+
+function findPendingResearchTargetForQuery(targets: PendingResearchTarget[], query: string): PendingResearchTarget | undefined {
+  const normalizedQuery = normalizeResearchQuery(query);
+  if (!normalizedQuery) return undefined;
+
+  return targets.find((target) => target.queries.some((candidate) => normalizeResearchQuery(candidate) === normalizedQuery))
+    ?? targets.find((target) => target.queries.some((candidate) => {
+      const normalizedCandidate = normalizeResearchQuery(candidate);
+      if (!normalizedCandidate) return false;
+      return normalizedCandidate.includes(normalizedQuery) || normalizedQuery.includes(normalizedCandidate);
+    }))
+    ?? targets.find((target) => {
+      const companyName = normalizeResearchQuery(target.companyName);
+      const jobTitle = normalizeResearchQuery(target.jobTitle ?? '');
+      return normalizedQuery.includes(companyName) && (!jobTitle || normalizedQuery.includes(jobTitle));
+    });
+}
+
+function normalizeResearchQuery(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 function refreshPendingResearchTargets(
