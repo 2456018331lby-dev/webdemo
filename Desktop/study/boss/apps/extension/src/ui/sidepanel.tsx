@@ -1,5 +1,6 @@
 import {
   buildResearchQuery,
+  addMinutes,
   getResearchCoverageForJob,
   parseCompanyResearch,
   parseResumeText,
@@ -273,6 +274,7 @@ function SidePanelApp() {
             <button className="secondary" disabled={policy.mode !== 'auto' || state?.runner.enabled} onClick={startQueueAutomation}>启动自动队列</button>
             <button className="secondary" disabled={!state?.runner.enabled} onClick={stopQueueAutomation}>停止自动队列</button>
           </div>
+          <p className="muted" data-testid="queue-policy-status">{formatQueuePolicyStatus(state?.queue, policy)}</p>
           <p className="muted">
             自动队列：{state?.runner.enabled ? '运行中' : '未启动'}
             {state?.runner.lastTickAt ? ` · 上次执行 ${new Date(state.runner.lastTickAt).toLocaleString()}` : ''}
@@ -436,6 +438,24 @@ function formatCompanyReasons(reasons: Array<{ label: string; delta: number }>):
 function formatDelta(value: number): string {
   const rounded = Math.round(value);
   return rounded > 0 ? `+${rounded}` : String(rounded);
+}
+
+function formatQueuePolicyStatus(queue: ExtensionState['queue'] | undefined, policy: QueuePolicy): string {
+  const applicationsToday = queue?.applicationsToday ?? 0;
+  const remaining = Math.max(0, policy.dailyLimit - applicationsToday);
+  const parts = [
+    `今日新投递 ${applicationsToday}/${policy.dailyLimit}`,
+    `剩余 ${remaining}`,
+    `安全间隔 ${policy.minMinutesBetweenActions} 分钟`
+  ];
+
+  if (queue?.lastApplicationAt) {
+    parts.push(`下次可投 ${new Date(addMinutes(queue.lastApplicationAt, policy.minMinutesBetweenActions)).toLocaleString()}`);
+  } else {
+    parts.push('下次可投：现在');
+  }
+
+  return parts.join(' · ');
 }
 
 createRoot(document.getElementById('root')!).render(<SidePanelApp />);

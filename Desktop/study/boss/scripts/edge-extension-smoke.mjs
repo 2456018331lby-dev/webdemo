@@ -607,6 +607,7 @@ async function verifyQueueAutoApply(client, port, resume, nowIso) {
     const item = response.state?.queue?.items?.find((queueItem) => queueItem.job.id === job.id);
     assert(item?.status === 'completed', `Expected background auto queue item to complete, got ${item?.status}`);
     assert(response.state?.queue?.applicationsToday === 1, `Expected real queue auto apply to consume one daily application, got ${response.state?.queue?.applicationsToday}`);
+    await verifyQueuePolicyStatusRendered(client, ['今日新投递 1/20', '剩余 19']);
     assert(response.state?.auditLog?.[0]?.action === 'apply.recorded', `Expected apply.recorded audit log, got ${response.state?.auditLog?.[0]?.action}`);
     assert(response.state?.auditLog?.[0]?.message?.includes('成功信号'), `Expected queue auto apply success signal, got ${response.state?.auditLog?.[0]?.message}`);
 
@@ -617,6 +618,20 @@ async function verifyQueueAutoApply(client, port, resume, nowIso) {
     fakeApplyPage.client.close();
     await closeTarget(port, fakeApplyPage.target.id);
   }
+}
+
+async function verifyQueuePolicyStatusRendered(client, expectedMarkers) {
+  await evaluate(client, 'location.reload()');
+  await waitForSidePanelReady(client);
+
+  let statusText = '';
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    statusText = await evaluate(client, `document.querySelector('[data-testid="queue-policy-status"]')?.textContent ?? ''`);
+    if (expectedMarkers.every((marker) => statusText.includes(marker))) return { statusText };
+    await sleep(250);
+  }
+
+  throw new Error(`Expected queue policy status to include ${expectedMarkers.join(', ')}, got ${statusText}`);
 }
 
 async function verifyAlreadyAppliedCompletion(client, port, resume, nowIso) {
