@@ -1,4 +1,14 @@
-import { parseCompanyResearch, parseResumeText, rankQueueItemsByCompany, type BlacklistRule, type QueueItem, type QueuePolicy } from '@job-assistant/shared';
+import {
+  buildResearchQuery,
+  getResearchCoverageForJob,
+  parseCompanyResearch,
+  parseResumeText,
+  rankQueueItemsByCompany,
+  type BlacklistRule,
+  type QueueItem,
+  type QueuePolicy,
+  type ResearchCriterionKey
+} from '@job-assistant/shared';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { ExtensionState } from '../storage/state';
@@ -112,6 +122,17 @@ function SidePanelApp() {
   async function openResearchSearch(companyName = researchCompany, jobTitle = researchJobTitle) {
     if (!companyName.trim()) return;
     const response = await sendRuntimeMessage({ type: 'OPEN_RESEARCH_SEARCH', companyName, jobTitle });
+    if (!response.ok) setError(response.error);
+  }
+
+  async function openResearchSearchesForItem(item: QueueItem, criteria: ResearchCriterionKey[]) {
+    const selectedCriteria = criteria.length > 0 ? criteria : undefined;
+    const response = await sendRuntimeMessage({
+      type: 'OPEN_RESEARCH_SEARCHES',
+      companyName: item.job.company.name,
+      jobTitle: item.job.title,
+      criteria: selectedCriteria
+    });
     if (!response.ok) setError(response.error);
   }
 
@@ -250,6 +271,7 @@ function SidePanelApp() {
               </div>
               {company.items.slice(0, 5).map((rankedItem) => {
                 const item = rankedItem.item;
+                const coverage = getResearchCoverageForJob(item.job, state?.research ?? []);
                 return (
                   <div className="job" key={item.id}>
                     <strong>#{rankedItem.jobRankInCompany} {item.job.title}</strong>
@@ -258,11 +280,27 @@ function SidePanelApp() {
                       <span className="score">{item.score.score}</span> / 100 · 岗位 {item.score.jobGrade ?? '-'}
                     </p>
                     <p className="muted">薪酬 {item.score.compensationScore ?? 0} · 休息/年假 {item.score.workLifeScore ?? 0} · 匹配 {item.score.jobFitScore ?? 0}</p>
+                    <p className="muted">
+                      全网资料 {coverage.completedCount}/{coverage.requiredCount} · 来源 {coverage.sourceCount}
+                      {coverage.complete ? ' · 覆盖完整' : ` · 缺：${coverage.missingLabels.join('、')}`}
+                    </p>
+                    <div className="coverage-row">
+                      {coverage.criteria.map((criterion) => (
+                        <span
+                          className={`coverage-chip ${criterion.present ? 'present' : 'missing'}`}
+                          key={criterion.key}
+                          title={criterion.details.join('、') || `缺少${criterion.label}资料`}
+                        >
+                          {criterion.label}
+                        </span>
+                      ))}
+                    </div>
                     <p className="muted">{item.score.reasons.slice(0, 3).map((reason) => `${reason.label}: ${Math.round(reason.delta)}`).join('；')}</p>
                     <div className="row">
-                      <button className="secondary" onClick={() => prepareResearchForItem(item)}>搜索此岗位资料</button>
-                      <a className="research-link" href={buildResearchSearchUrl(item)} target="_blank" rel="noreferrer">打开搜索链接</a>
+                      <button className="secondary" disabled={coverage.missingKeys.length === 0} onClick={() => openResearchSearchesForItem(item, coverage.missingKeys)}>搜索缺失资料</button>
+                      <button className="secondary" onClick={() => prepareResearchForItem(item)}>通用搜索</button>
                     </div>
+                    <a className="research-link" href={buildResearchSearchUrl(item)} target="_blank" rel="noreferrer">打开通用搜索链接</a>
                   </div>
                 );
               })}
@@ -291,7 +329,7 @@ function splitCsv(value: string): string[] {
 }
 
 function buildResearchSearchUrl(item: QueueItem): string {
-  const query = `${item.job.company.name} ${item.job.title} 薪资 奖金 福利 双休 年假 加班`;
+  const query = buildResearchQuery(item.job.company.name, item.job.title);
   return `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
 }
 

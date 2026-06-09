@@ -18,6 +18,42 @@ export interface ResearchSignal {
   reasons: string[];
 }
 
+export const researchCriteria = [
+  { key: 'salary', label: '薪资', searchTerms: ['薪资', '工资', '待遇'] },
+  { key: 'bonus', label: '奖金', searchTerms: ['奖金', '年终奖', '十三薪', '期权'] },
+  { key: 'benefits', label: '福利', searchTerms: ['福利', '五险一金', '补贴', '体检'] },
+  { key: 'rest', label: '休息', searchTerms: ['双休', '加班', '大小周', '996'] },
+  { key: 'annualLeave', label: '年假', searchTerms: ['年假', '带薪年假', '调休'] },
+  { key: 'risk', label: '风险', searchTerms: ['员工评价', '裁员', '欠薪', '避雷', '加班'] }
+] as const;
+
+export type ResearchCriterionKey = typeof researchCriteria[number]['key'];
+
+export interface ResearchQuery {
+  key: ResearchCriterionKey;
+  label: string;
+  query: string;
+}
+
+export interface ResearchCriterionCoverage {
+  key: ResearchCriterionKey;
+  label: string;
+  present: boolean;
+  details: string[];
+}
+
+export interface ResearchCoverage {
+  companyName: string;
+  jobTitle?: string;
+  sourceCount: number;
+  completedCount: number;
+  requiredCount: number;
+  complete: boolean;
+  missingKeys: ResearchCriterionKey[];
+  missingLabels: string[];
+  criteria: ResearchCriterionCoverage[];
+}
+
 export interface ResearchPageCaptureInput {
   companyName: string;
   jobTitle?: string;
@@ -79,12 +115,54 @@ export function buildResearchQuery(companyName: string, jobTitle?: string): stri
     .join(' ');
 }
 
+export function buildResearchQueries(companyName: string, jobTitle?: string, criteria?: ResearchCriterionKey[]): ResearchQuery[] {
+  const requestedKeys = new Set(criteria?.length ? criteria : researchCriteria.map((criterion) => criterion.key));
+  return researchCriteria
+    .filter((criterion) => requestedKeys.has(criterion.key))
+    .map((criterion) => ({
+      key: criterion.key,
+      label: criterion.label,
+      query: [companyName, jobTitle, ...criterion.searchTerms]
+        .filter((part): part is string => Boolean(part?.trim()))
+        .join(' ')
+    }));
+}
+
 export function getResearchForJob(job: JobPosting, records: CompanyResearchRecord[]): CompanyResearchRecord[] {
   return records.filter((record) => {
     if (!includesNormalized(record.companyName, job.company.name) && !includesNormalized(job.company.name, record.companyName)) return false;
     if (!record.jobTitle) return true;
     return includesNormalized(job.title, record.jobTitle) || includesNormalized(record.jobTitle, job.title);
   });
+}
+
+export function getResearchCoverageForJob(job: JobPosting, records: CompanyResearchRecord[]): ResearchCoverage {
+  return getResearchCoverage(job.company.name, job.title, getResearchForJob(job, records));
+}
+
+export function getResearchCoverage(companyName: string, jobTitle: string | undefined, records: CompanyResearchRecord[]): ResearchCoverage {
+  const criteria = researchCriteria.map((criterion): ResearchCriterionCoverage => {
+    const details = getCoverageDetails(criterion.key, records);
+    return {
+      key: criterion.key,
+      label: criterion.label,
+      present: details.length > 0,
+      details
+    };
+  });
+  const missing = criteria.filter((criterion) => !criterion.present);
+
+  return {
+    companyName,
+    jobTitle,
+    sourceCount: records.length,
+    completedCount: criteria.length - missing.length,
+    requiredCount: criteria.length,
+    complete: missing.length === 0,
+    missingKeys: missing.map((criterion) => criterion.key),
+    missingLabels: missing.map((criterion) => criterion.label),
+    criteria
+  };
 }
 
 export function scoreResearchSignal(job: JobPosting, records: CompanyResearchRecord[]): ResearchSignal | undefined {
@@ -204,6 +282,34 @@ function compareResearchRecords(a: CompanyResearchRecord, b: CompanyResearchReco
 
 function splitSignal(value: string | undefined): string[] {
   return value?.split(/[、,，;；\s]+/).filter(Boolean) ?? [];
+}
+
+function getCoverageDetails(key: ResearchCriterionKey, records: CompanyResearchRecord[]): string[] {
+  switch (key) {
+    case 'salary':
+      return uniqueValues(records.map((record) => formatSalary(record.salary)));
+    case 'bonus':
+      return uniqueValues(records.flatMap((record) => splitSignal(record.bonus)));
+    case 'benefits':
+      return uniqueValues(records.flatMap((record) => record.benefits));
+    case 'rest':
+      return uniqueValues(records.flatMap((record) => splitSignal(record.restSchedule)));
+    case 'annualLeave':
+      return uniqueValues(records.flatMap((record) => splitSignal(record.annualLeave)));
+    case 'risk':
+      return getRiskCoverageDetails(records);
+  }
+}
+
+function getRiskCoverageDetails(records: CompanyResearchRecord[]): string[] {
+  const warnings = uniqueValues(records.flatMap((record) => record.warnings));
+  if (warnings.length > 0) return warnings;
+  return records.some((record) => mentionsRiskOrReview(record)) ? ['已保存评价/风险相关资料'] : [];
+}
+
+function mentionsRiskOrReview(record: CompanyResearchRecord): boolean {
+  const value = `${record.sourceTitle ?? ''} ${record.summary}`;
+  return ['评价', '口碑', '员工', '加班', '裁员', '欠薪', '避雷', '风险'].some((keyword) => includesNormalized(value, keyword));
 }
 
 function uniqueValues(values: Array<string | undefined>): string[] {

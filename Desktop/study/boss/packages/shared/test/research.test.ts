@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { JobPosting, ResumeProfile } from '../src';
-import { buildResearchQuery, createResearchFromPage, getResearchForJob, parseCompanyResearch, scoreJob, scoreResearchSignal } from '../src';
+import {
+  buildResearchQueries,
+  buildResearchQuery,
+  createResearchFromPage,
+  getResearchCoverageForJob,
+  getResearchForJob,
+  parseCompanyResearch,
+  scoreJob,
+  scoreResearchSignal
+} from '../src';
 
 const job: JobPosting = {
   id: 'job-1',
@@ -24,6 +33,15 @@ const resume: ResumeProfile = {
 describe('company research', () => {
   it('builds focused full-web search queries', () => {
     expect(buildResearchQuery('星河科技', '前端工程师')).toContain('星河科技 前端工程师 薪资 奖金 福利 双休 年假 加班 评价');
+  });
+
+  it('builds criterion-specific full-web search queries', () => {
+    const queries = buildResearchQueries('星河科技', '前端工程师', ['salary', 'rest']);
+
+    expect(queries).toEqual([
+      { key: 'salary', label: '薪资', query: '星河科技 前端工程师 薪资 工资 待遇' },
+      { key: 'rest', label: '休息', query: '星河科技 前端工程师 双休 加班 大小周 996' }
+    ]);
   });
 
   it('matches saved research by company and role before auto ranking uses it', () => {
@@ -50,6 +68,48 @@ describe('company research', () => {
     });
 
     expect(getResearchForJob(job, [frontEndRecord, backendRecord, otherCompanyRecord])).toEqual([frontEndRecord]);
+  });
+
+  it('reports missing research coverage by ranking criterion', () => {
+    const record = parseCompanyResearch({
+      companyName: '星河科技',
+      jobTitle: '前端工程师',
+      sourceUrl: 'https://example.com/salary',
+      capturedAt: '2026-06-08T00:00:00.000Z',
+      summary: '前端工程师薪资 25-35K，五险一金，周末双休。'
+    });
+
+    const coverage = getResearchCoverageForJob(job, [record]);
+
+    expect(coverage.sourceCount).toBe(1);
+    expect(coverage.completedCount).toBe(3);
+    expect(coverage.missingLabels).toEqual(['奖金', '年假', '风险']);
+    expect(coverage.criteria.find((criterion) => criterion.key === 'salary')?.details).toEqual(['25-35k']);
+  });
+
+  it('aggregates research coverage across multiple web sources', () => {
+    const salaryAndBonus = parseCompanyResearch({
+      companyName: '星河科技',
+      jobTitle: '前端工程师',
+      sourceUrl: 'https://example.com/jobs',
+      capturedAt: '2026-06-08T00:00:00.000Z',
+      summary: '前端工程师薪资 25-35K，五险一金，餐补，年终奖。'
+    });
+    const workLifeAndRisk = parseCompanyResearch({
+      companyName: '星河科技',
+      jobTitle: '前端',
+      sourceUrl: 'https://example.com/reviews',
+      sourceTitle: '员工评价',
+      capturedAt: '2026-06-09T00:00:00.000Z',
+      summary: '员工评价提到周末双休，带薪年假，补充医疗，整体加班较少。'
+    });
+
+    const coverage = getResearchCoverageForJob(job, [salaryAndBonus, workLifeAndRisk]);
+
+    expect(coverage.complete).toBe(true);
+    expect(coverage.completedCount).toBe(6);
+    expect(coverage.missingKeys).toEqual([]);
+    expect(coverage.criteria.find((criterion) => criterion.key === 'risk')?.details).toEqual(['已保存评价/风险相关资料']);
   });
 
   it('parses pasted web evidence into ranking signals', () => {

@@ -156,6 +156,31 @@ button:disabled {
   white-space: nowrap;
 }
 
+.coverage-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.coverage-chip {
+  border: 1px solid #d7deeb;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 7px;
+}
+
+.coverage-chip.present {
+  background: #ecf7f1;
+  color: #147a4b;
+}
+
+.coverage-chip.missing {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
 .research-item {
   border-left: 3px solid #2364d2;
   padding-left: 10px;

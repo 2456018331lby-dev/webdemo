@@ -1,6 +1,7 @@
 import {
   addMinutes,
   appendAuditLog,
+  buildResearchQueries,
   buildResearchQuery,
   createSafeApplyAttempt,
   createResearchFromPage,
@@ -122,6 +123,15 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
       const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
       await chrome.tabs.create({ url, active: true });
       return { ok: true, message: `已打开资料搜索：${query}` };
+    }
+
+    case 'OPEN_RESEARCH_SEARCHES': {
+      const queries = buildResearchQueries(message.companyName, message.jobTitle, message.criteria);
+      for (const [index, query] of queries.entries()) {
+        const url = `https://www.bing.com/search?q=${encodeURIComponent(query.query)}`;
+        await chrome.tabs.create({ url, active: index === 0 });
+      }
+      return { ok: true, message: `已打开 ${queries.length} 个资料搜索。` };
     }
 
     case 'CAPTURE_ACTIVE_RESEARCH': {
