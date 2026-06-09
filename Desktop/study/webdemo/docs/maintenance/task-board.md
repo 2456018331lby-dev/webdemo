@@ -10,6 +10,7 @@ The repository should stay lean:
 
 - Keep regression tests that protect current behavior.
 - Do not keep generated screenshots, traces, reports, `.next`, coverage, temp scripts, local DBs, or `.omx` state.
+- Treat `node_modules/` as an ignored working dependency, not a repository artifact to publish.
 - Keep maintenance docs short enough for the next agent to read before editing.
 
 ## Completed Capability Groups
@@ -34,6 +35,7 @@ The repository should stay lean:
 - [x] Remove Playwright screenshot writes from production e2e tests
 - [x] Compress handoff/task-board docs to current-state summaries
 - [x] Current cleanup removed `.next` and `test-results` after verification
+- [x] Tighten `.gitignore` for build/test caches, Playwright reports, `blob-report`, TS build info, local DBs, package-manager logs, and OMX state
 - [ ] Keep future build/smoke runs from leaving `.next`, reports, screenshots, or temp files
 
 ### App Logic

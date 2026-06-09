@@ -1,5 +1,23 @@
 # Progress Log
 
+## 2026-06-09 (清理跟进与忽略规则收敛)
+
+### 清理目标
+- 复查“冗余、旧版本、测试产物、垃圾文件”是否仍留在仓库工作区
+- 保留后续维护需要的源码测试，只清掉生成物和过期产物
+- 避免后续构建、测试和浏览器验证再次把缓存、报告或临时状态混进 Git
+
+### 结果
+- `git status -sb --ignored` 显示没有 tracked dirt；唯一忽略项是 `node_modules/`
+- 递归扫描未发现 `.next`、`test-results`、`playwright-report`、`coverage`、`blob-report`、`output`、`.playwright-mcp`、`.omx`、临时备份文件、trace、HAR 或 TS build info
+- 保留 `apps/web/src/**/*.test.*`、`packages/**/*.test.*` 和 `tests/e2e/*`，因为这些是保护现有功能的回归测试，不是一次性垃圾
+- `.gitignore` 补强了 build/test caches、Playwright 报告、`blob-report`、TS build info、本地 DB、包管理器 debug log 和 OMX 状态
+
+### 验证
+- 本轮无业务逻辑修改；验证重点是工作区状态、递归垃圾扫描和忽略规则
+
+---
+
 ## 2026-06-09 (设备维护备份恢复校验)
 
 ### 优化目标

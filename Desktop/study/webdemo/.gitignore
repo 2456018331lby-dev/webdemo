@@ -1,19 +1,41 @@
+# Dependencies
 node_modules/
-.next/
-coverage/
-playwright-report/
-test-results/
-.playwright-mcp/
-.env
-.env.local
-apps/web/.next/
 apps/web/node_modules/
 packages/*/node_modules/
-supabase/.temp/
+
+# Environment and local runtime state
+.env
+.env.local
 data/
 *.db
 *.db-shm
 *.db-wal
+
+# Build and tool caches
+.next/
+apps/web/.next/
+out/
+dist/
+build/
+.turbo/
+.cache/
+*.tsbuildinfo
+supabase/.temp/
+
+# Test, browser, and verification artifacts
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.playwright-mcp/
 output/
+
+# Local orchestration state
 .omx/
 .omx-devserver-job.txt
+
+# Package-manager debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

@@ -65,12 +65,14 @@ The app is currently runnable with the in-memory backend. Supabase, Android pack
 
 - Keep source tests that protect current behavior. They are not disposable artifacts.
 - Do not keep Playwright screenshots, trace files, reports, `.next`, `coverage`, temp scripts, local DB files, or `.omx` state.
+- `.gitignore` covers dependency folders, build/cache output, browser test reports, `blob-report`, `*.tsbuildinfo`, local DB files, package-manager debug logs, and OMX state.
 - Production e2e tests no longer write `output/qa-*.png`; use screenshots only for a specific visual investigation and delete them after.
 - Old Superpowers plan/spec files were removed because current handoff, task board, hardware docs, and protocol docs replace them.
 - When the machine is memory-constrained, run full Vitest separately from build/lint and use `npm test -- --run --maxWorkers=1`.
 
 ## Latest Verification
 
+- 2026-06-09 cleanup follow-up: `git status -sb --ignored` showed no tracked dirt and only ignored `node_modules/`; recursive scan found no `.next`, `test-results`, `playwright-report`, `coverage`, `blob-report`, `output`, `.playwright-mcp`, `.omx`, temp backup files, trace files, HAR files, or TS build info artifacts. `.gitignore` was tightened for future build/test caches and package-manager debug logs.
 - 2026-06-09 device-maintenance backup restore validation: targeted helper tests passed, full `npm test -- --run --maxWorkers=1` passed, 26 files / 122 tests; `npm run lint` passed; `npm run build` passed; direct `node ./node_modules/@playwright/test/cli.js test tests/e2e/prod-shell.spec.ts` passed, 15 tests. Build and e2e artifacts were deleted after verification.
 - 2026-06-09 settings device maintenance reset: `npm test -- --run` passed, 26 files / 120 tests; `npm run lint` passed; `npm run build` passed; `playwright test tests/e2e/prod-shell.spec.ts` passed, 15 tests; desktop/mobile no-output smoke verified reset dialog and final state without horizontal overflow. Build and e2e artifacts were deleted after verification.
 - 2026-06-09 settings device maintenance persistence: `npm test -- --run` passed, 26 files / 119 tests; `npm run lint` passed with no warnings; `npm run build` passed; `playwright test tests/e2e/prod-shell.spec.ts` passed, 15 tests. Build and e2e artifacts were deleted after verification.
