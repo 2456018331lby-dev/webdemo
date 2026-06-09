@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CompanyResearchRecord, JobPosting, JobScore, QueueState } from '../src';
-import { enqueueScoredJobs, getNextActionableItem, getNextRunnableItem, markQueueItemAttempted, parseCompanyResearch, rankQueueItemsByCompany, reconcileScoredQueue } from '../src';
+import { enqueueScoredJobs, getNextActionableItem, getNextRunnableItem, markQueueItemAttempted, parseCompanyResearch, planQueueResearchTargets, rankQueueItemsByCompany, reconcileScoredQueue } from '../src';
 
 const job: JobPosting = {
   id: 'job-1',
@@ -138,6 +138,52 @@ describe('queue policy', () => {
     expect(ranked[0]?.items.map((item) => item.jobRankInCompany)).toEqual([1, 2]);
     expect(ranked[1]?.companyName).toBe('Beta');
     expect(ranked[1]?.companyRank).toBe(2);
+  });
+
+  it('plans missing research from the ranked queue before lower-ranked companies', () => {
+    const bestCompanyHighJob = {
+      job: { ...job, id: 'alpha-high', company: { name: 'Alpha', tags: [] } },
+      score: { ...score, jobId: 'alpha-high', score: 80, companyScore: 95 }
+    };
+    const bestCompanyLowerJob = {
+      job: { ...job, id: 'alpha-lower', title: 'React 工程师', company: { name: 'Alpha', tags: [] } },
+      score: { ...score, jobId: 'alpha-lower', score: 52, companyScore: 55 }
+    };
+    const secondCompanyBestJob = {
+      job: { ...job, id: 'beta-best', company: { name: 'Beta', tags: [] } },
+      score: { ...score, jobId: 'beta-best', score: 98, companyScore: 82 }
+    };
+    const skippedJob = {
+      job: { ...job, id: 'skipped', company: { name: 'Skipped', tags: [] } },
+      score: { ...score, jobId: 'skipped', score: 99, companyScore: 99 }
+    };
+    const reviewOnlyJob = {
+      job: { ...job, id: 'review-only', company: { name: 'Review', tags: [] } },
+      score: { ...score, jobId: 'review-only', score: 50, companyScore: 98, recommendation: 'review' as const }
+    };
+    const completeResearch = parseCompanyResearch({
+      companyName: 'Alpha',
+      jobTitle: '前端工程师',
+      sourceTitle: 'Alpha 员工评价',
+      capturedAt: '2026-06-08T01:03:00.000Z',
+      summary: '前端工程师薪资 25-35K，五险一金，年终奖，周末双休，带薪年假。员工评价整体稳定。'
+    });
+
+    const state = enqueueScoredJobs(emptyState, [secondCompanyBestJob, bestCompanyLowerJob, bestCompanyHighJob, skippedJob, reviewOnlyJob], {
+      nowIso: '2026-06-08T01:00:00.000Z',
+      policy: { mode: 'dry-run' }
+    });
+    const withSkippedItem = {
+      ...state,
+      items: state.items.map((item) => item.job.id === 'skipped' ? { ...item, status: 'skipped' as const, pauseReason: 'blacklisted' as const } : item)
+    };
+
+    const planned = planQueueResearchTargets(withSkippedItem.items, [completeResearch], 2);
+
+    expect(planned.map((target) => target.item.job.id)).toEqual(['alpha-lower', 'beta-best']);
+    expect(planned[0]?.queries.map((query) => query.key)).toContain('salary');
+    expect(planned.every((target) => target.item.job.id !== 'skipped')).toBe(true);
+    expect(planned.every((target) => target.item.job.id !== 'review-only')).toBe(true);
   });
 
   it('reconciles newly scored jobs into an empty queue after resume save', () => {

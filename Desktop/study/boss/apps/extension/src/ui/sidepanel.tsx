@@ -174,6 +174,12 @@ function SidePanelApp() {
     else setError(response.error);
   }
 
+  async function openQueueResearchSearches() {
+    const response = await sendRuntimeMessage({ type: 'OPEN_QUEUE_RESEARCH_SEARCHES', limit: 3 });
+    if (response.ok) setState(response.state);
+    else setError(response.error);
+  }
+
   async function captureActiveResearch() {
     if (!researchCompany.trim()) return;
     const response = await sendRuntimeMessage({ type: 'CAPTURE_ACTIVE_RESEARCH', companyName: researchCompany, jobTitle: researchJobTitle });
@@ -300,7 +306,17 @@ function SidePanelApp() {
           <button disabled={!researchCompany.trim() || !researchSummary.trim()} onClick={saveResearch}>保存并重排队列</button>
           <button className="secondary" disabled={!researchCompany.trim()} onClick={() => openResearchSearch()}>打开搜索</button>
         </div>
-        <button className="secondary" disabled={!researchCompany.trim()} onClick={captureActiveResearch}>捕获当前页资料</button>
+        <div className="row">
+          <button className="secondary" disabled={!researchCompany.trim()} onClick={captureActiveResearch}>捕获当前页资料</button>
+          <button
+            className="secondary"
+            data-testid="queue-research-preflight-button"
+            disabled={(state?.queue.items.length ?? 0) === 0}
+            onClick={openQueueResearchSearches}
+          >
+            补齐队列资料
+          </button>
+        </div>
         <p className="muted">已保存资料：{state?.research.length ?? 0} 条。保存后会重新计算公司分和岗位排序。</p>
         {(state?.pendingResearchTargets.length ?? 0) > 0 && (
           <div className="list">

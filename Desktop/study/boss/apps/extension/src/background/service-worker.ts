@@ -11,6 +11,7 @@ import {
   getNextActionableItem,
   getResearchCoverageForJob,
   markQueueItemAttempted,
+  planQueueResearchTargets,
   reconcileScoredQueue,
   researchCriteria,
   rotateDay,
@@ -22,6 +23,7 @@ import { loadState, updateState, type ExtensionState, type PendingResearchTarget
 
 const QUEUE_AUTOMATION_ALARM = 'job-assistant.queue-automation';
 const MIN_AUTOMATION_INTERVAL_MINUTES = 3;
+const DEFAULT_QUEUE_RESEARCH_PREFLIGHT_LIMIT = 3;
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => undefined);
@@ -173,6 +175,17 @@ async function handleMessage(message: RuntimeMessage, sender: chrome.runtime.Mes
       }));
       await openResearchQueryTabs(queries);
       return { ok: true, state, message: `已打开 ${queries.length} 个资料搜索。` };
+    }
+
+    case 'OPEN_QUEUE_RESEARCH_SEARCHES': {
+      const result = await openQueueResearchSearches(message.limit);
+      return {
+        ok: true,
+        state: result.state,
+        message: result.targetCount > 0
+          ? `已按队列排序为 ${result.targetCount} 个岗位打开 ${result.queryCount} 个缺失资料搜索。`
+          : '当前队列没有缺失全网资料的可预检岗位。'
+      };
     }
 
     case 'CAPTURE_ACTIVE_RESEARCH': {
@@ -644,6 +657,72 @@ async function saveResearchRecord(record: CompanyResearchRecord): Promise<Awaite
     message: `已保存 ${record.companyName} 的全网资料。`,
     metadata: { sourceUrl: record.sourceUrl, warnings: record.warnings }
   }));
+}
+
+async function openQueueResearchSearches(limitInput?: number): Promise<{ state: ExtensionState; targetCount: number; queryCount: number }> {
+  const nowIso = new Date().toISOString();
+  const limit = normalizeQueueResearchLimit(limitInput);
+  let queriesToOpen: ResearchQuery[] = [];
+  let targetCount = 0;
+
+  const state = await updateState((current) => {
+    const plannedTargets = planQueueResearchTargets(current.queue.items, current.research, limit);
+    queriesToOpen = plannedTargets.flatMap((target) => target.queries);
+    targetCount = plannedTargets.length;
+
+    if (plannedTargets.length === 0) {
+      return {
+        ...current,
+        auditLog: appendAuditLog(current.auditLog, {
+          at: nowIso,
+          level: 'info',
+          action: 'research.preflight.idle',
+          message: '队列预检没有发现缺失全网资料的可执行岗位。'
+        })
+      };
+    }
+
+    const pendingResearchTargets = plannedTargets.reduce(
+      (targets, target) => upsertPendingResearchTarget(
+        targets,
+        createPendingResearchTarget({
+          companyName: target.item.job.company.name,
+          jobTitle: target.item.job.title,
+          jobId: target.item.job.id,
+          platform: target.item.job.platform,
+          missingKeys: target.coverage.missingKeys,
+          missingLabels: target.coverage.missingLabels,
+          queries: target.queries,
+          source: 'manual-search',
+          nowIso
+        })
+      ),
+      current.pendingResearchTargets
+    );
+
+    return {
+      ...current,
+      pendingResearchTargets,
+      auditLog: appendAuditLog(current.auditLog, {
+        at: nowIso,
+        level: 'info',
+        action: 'research.preflight.opened',
+        message: `已按队列排序为 ${plannedTargets.length} 个岗位打开 ${queriesToOpen.length} 个缺失资料搜索。`,
+        metadata: {
+          targetJobIds: plannedTargets.map((target) => target.item.job.id),
+          queries: queriesToOpen.map((query) => query.query)
+        }
+      })
+    };
+  });
+
+  if (queriesToOpen.length > 0) await openResearchQueryTabs(queriesToOpen);
+  return { state, targetCount, queryCount: queriesToOpen.length };
+}
+
+function normalizeQueueResearchLimit(limitInput: number | undefined): number {
+  if (typeof limitInput !== 'number' || !Number.isFinite(limitInput)) return DEFAULT_QUEUE_RESEARCH_PREFLIGHT_LIMIT;
+  return Math.max(1, Math.min(5, Math.floor(limitInput)));
 }
 
 function applyResearchRecord(

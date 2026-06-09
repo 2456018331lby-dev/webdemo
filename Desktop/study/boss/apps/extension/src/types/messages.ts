@@ -20,6 +20,7 @@ export type RuntimeMessage =
   | { type: 'SAVE_RESEARCH'; record: CompanyResearchRecord }
   | { type: 'OPEN_RESEARCH_SEARCH'; companyName: string; jobTitle?: string }
   | { type: 'OPEN_RESEARCH_SEARCHES'; companyName: string; jobTitle?: string; criteria?: ResearchCriterionKey[]; jobId?: string; platform?: PlatformId }
+  | { type: 'OPEN_QUEUE_RESEARCH_SEARCHES'; limit?: number }
   | { type: 'CAPTURE_ACTIVE_RESEARCH'; companyName: string; jobTitle?: string }
   | { type: 'SCAN_ACTIVE_TAB' }
   | { type: 'CONTENT_EXTRACT_JOBS' }

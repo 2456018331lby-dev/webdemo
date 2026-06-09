@@ -2,7 +2,7 @@ import type { CompanyResearchRecord, JobPosting, JobScore, QueueItem, QueuePolic
 import { addMinutes, stableId } from './text';
 import { defaultQueuePolicy } from './types';
 import { flattenRankedQueueItems } from './ranking';
-import { hasCompleteResearchCoverageForJob } from './research';
+import { getMissingResearchQueriesForJob, getResearchCoverageForJob, hasCompleteResearchCoverageForJob, type ResearchCoverage, type ResearchQuery } from './research';
 
 export interface QueueState {
   items: QueueItem[];
@@ -18,6 +18,12 @@ export interface EnqueueOptions {
 
 export interface ReconcileQueueOptions extends EnqueueOptions {
   research?: CompanyResearchRecord[];
+}
+
+export interface QueueResearchTargetPlan {
+  item: QueueItem;
+  coverage: ResearchCoverage;
+  queries: ResearchQuery[];
 }
 
 export function createQueueItem(job: JobPosting, score: JobScore, nowIso: string, policy: QueuePolicy): QueueItem {
@@ -103,6 +109,36 @@ export function getNextActionableItem(state: QueueState, policyInput: Partial<Qu
   });
 }
 
+export function planQueueResearchTargets(
+  items: QueueItem[],
+  research: CompanyResearchRecord[],
+  limit = 3
+): QueueResearchTargetPlan[] {
+  const maxTargets = Math.max(0, Math.floor(limit));
+  if (maxTargets === 0) return [];
+
+  const plans: QueueResearchTargetPlan[] = [];
+  const seenJobs = new Set<string>();
+
+  for (const item of sortQueue(items)) {
+    if (plans.length >= maxTargets) break;
+    if (!isResearchTargetCandidate(item)) continue;
+
+    const jobKey = getJobKey(item.job);
+    if (seenJobs.has(jobKey)) continue;
+    seenJobs.add(jobKey);
+
+    const coverage = getResearchCoverageForJob(item.job, research);
+    if (coverage.complete) continue;
+
+    const queries = getMissingResearchQueriesForJob(item.job, research);
+    if (queries.length === 0) continue;
+    plans.push({ item, coverage, queries });
+  }
+
+  return plans;
+}
+
 export function markQueueItemAttempted(
   state: QueueState,
   itemId: string,
@@ -141,6 +177,12 @@ export function rotateDay(state: QueueState, nowIso: string): QueueState {
 
 function sortQueue(items: QueueItem[]): QueueItem[] {
   return flattenRankedQueueItems(items);
+}
+
+function isResearchTargetCandidate(item: QueueItem): boolean {
+  if (item.status === 'queued') return true;
+  if (item.status === 'needs-approval') return item.score.recommendation === 'apply';
+  return item.status === 'paused' && item.pauseReason === 'missing-research';
 }
 
 function reconcileQueueItem(item: QueueItem, job: JobPosting, score: JobScore, nowIso: string, policy: QueuePolicy, research: CompanyResearchRecord[]): QueueItem {

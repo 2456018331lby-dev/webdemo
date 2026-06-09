@@ -91,6 +91,7 @@ try {
     const queuedIds = queuedItems.map((item) => item.job.id);
     assert(queuedIds[0] === 'edge-high-salary', `Expected high salary job first, got ${queuedIds.join(', ')}`);
     assert((queuedItems[0]?.score?.compensationScore ?? 0) > (queuedItems[1]?.score?.compensationScore ?? 0), 'Expected high salary compensation score to beat low salary score');
+    const queueResearchPreflight = await verifyQueueResearchPreflight(client, queuedIds[0]);
 
     const rescannedLowSalaryAsBetterJob = {
       ...jobs[1],
@@ -118,6 +119,8 @@ try {
       scannedJobQueued: true,
       autoApplyClicked: true,
       autoResearchCaptured: autoResearch.recordCount,
+      queueResearchPreflightTarget: queueResearchPreflight.targetJobId,
+      queueResearchPreflightSearches: queueResearchPreflight.openedSearches,
       queueAutoApplyCompleted: queueAutoApply.completedJobId,
       requiredFieldPauseReason: requiredFieldPause.pauseReason,
       rankedJobIds: queuedIds,
@@ -406,6 +409,31 @@ async function verifyResumeFileImport(client) {
     targetLocations: resume.targetLocations,
     skills: resume.skills,
     yearsOfExperience: resume.yearsOfExperience
+  };
+}
+
+async function verifyQueueResearchPreflight(client, expectedJobId) {
+  const response = await sendRuntimeMessage(client, { type: 'OPEN_QUEUE_RESEARCH_SEARCHES', limit: 1 });
+  const target = response.state?.pendingResearchTargets?.find((item) => item.jobId === expectedJobId);
+  assert(target, `Expected queue research preflight target for ${expectedJobId}, got ${JSON.stringify(response.state?.pendingResearchTargets)}`);
+  assert(target.missingKeys?.length > 0, `Expected preflight target to list missing research keys, got ${JSON.stringify(target)}`);
+  assert(target.queries?.length > 0, `Expected preflight target to include search queries, got ${JSON.stringify(target)}`);
+  assert(response.state?.auditLog?.[0]?.action === 'research.preflight.opened', `Expected research.preflight.opened audit log, got ${response.state?.auditLog?.[0]?.action}`);
+
+  const openedSearches = await evaluate(
+    client,
+    `new Promise((resolve) => chrome.tabs.query({ url: 'https://www.bing.com/search*' }, (tabs) => {
+      const ids = tabs.map((tab) => tab.id).filter(Boolean);
+      if (ids.length > 0) chrome.tabs.remove(ids, () => resolve(tabs.map((tab) => tab.url)));
+      else resolve([]);
+    }))`
+  );
+  assert(openedSearches.length >= target.queries.length, `Expected opened Bing tabs for preflight queries, got ${JSON.stringify(openedSearches)}`);
+
+  return {
+    targetJobId: target.jobId,
+    openedSearches: openedSearches.length,
+    missingKeys: target.missingKeys
   };
 }
 
