@@ -1,6 +1,7 @@
 export * from './adapters';
 export * from './audit';
 export * from './automation';
+export * from './compensation';
 export * from './queue';
 export * from './ranking';
 export * from './research';

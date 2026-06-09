@@ -150,6 +150,25 @@ describe('company research', () => {
     expect(record.confidence).toBe('high');
   });
 
+  it('parses Chinese monthly and annual salary evidence from full-web snippets', () => {
+    const monthly = parseCompanyResearch({
+      companyName: '星河科技',
+      jobTitle: '前端工程师',
+      capturedAt: '2026-06-08T00:00:00.000Z',
+      summary: '员工分享前端工程师月薪2.5万-3.5万，14薪，五险一金，周末双休。'
+    });
+    const annual = parseCompanyResearch({
+      companyName: '星河科技',
+      jobTitle: '前端工程师',
+      capturedAt: '2026-06-08T00:00:00.000Z',
+      summary: '招聘页写明年薪30万-50万，带薪年假，补充医疗。'
+    });
+
+    expect(monthly.salary).toMatchObject({ min: 25_000, max: 35_000, period: 'month', currency: 'CNY' });
+    expect(monthly.bonus).toContain('14薪');
+    expect(annual.salary).toMatchObject({ min: 300_000, max: 500_000, period: 'year', currency: 'CNY' });
+  });
+
   it('adds saved research evidence to job scoring', () => {
     const record = parseCompanyResearch({
       companyName: '星河科技',
@@ -194,6 +213,25 @@ describe('company research', () => {
     expect(reasons).toContain('外部薪资');
     expect(reasons).toContain('定期体检');
     expect(reasons).toContain('周末双休');
+  });
+
+  it('gives stronger research signal to higher external salary evidence', () => {
+    const lowSalary = parseCompanyResearch({
+      companyName: '星河科技',
+      jobTitle: '前端工程师',
+      sourceUrl: 'https://example.com/low',
+      capturedAt: '2026-06-08T00:00:00.000Z',
+      summary: '前端工程师薪资 8-10K，五险一金，周末双休。'
+    });
+    const highSalary = parseCompanyResearch({
+      companyName: '星河科技',
+      jobTitle: '前端工程师',
+      sourceUrl: 'https://example.com/high',
+      capturedAt: '2026-06-08T00:00:00.000Z',
+      summary: '前端工程师薪资 35-45K，五险一金，周末双休。'
+    });
+
+    expect(scoreResearchSignal(job, [highSalary])?.score).toBeGreaterThan(scoreResearchSignal(job, [lowSalary])?.score ?? 0);
   });
 
   it('creates research records from captured page text', () => {

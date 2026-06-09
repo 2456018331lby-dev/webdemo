@@ -1,5 +1,6 @@
 import type { AdapterExtractionResult, JobPosting, PlatformAdapter } from './types';
 import { createSafeApplyAttempt, evaluatePageSafety } from './automation';
+import { parseCompensationSalary } from './compensation';
 import { stableId, uniqueBy } from './text';
 
 const BOSS_SELECTORS = [
@@ -82,7 +83,7 @@ function extractBossJob(element: HTMLElement, nowIso: string): JobPosting | null
       tags,
     },
     location,
-    salary: salaryRaw ? parseSalary(salaryRaw) : undefined,
+    salary: salaryRaw ? parseCompensationSalary(salaryRaw) : undefined,
     description,
     requirements: tags,
     tags,
@@ -99,21 +100,6 @@ function textFrom(element: HTMLElement, selectors: string[]): string | undefined
     if (value) return value;
   }
   return undefined;
-}
-
-function parseSalary(raw: string): JobPosting['salary'] {
-  const normalized = raw.replace(/\s+/g, '').toLowerCase();
-  const matches = normalized.match(/(\d+(?:\.\d+)?)\s*k?(?:-|~|至)?(\d+(?:\.\d+)?)?\s*k?/i);
-  const min = matches?.[1] ? Number(matches[1]) * 1000 : undefined;
-  const max = matches?.[2] ? Number(matches[2]) * 1000 : min;
-
-  return {
-    min,
-    max,
-    currency: normalized.includes('$') || normalized.includes('usd') ? 'USD' : normalized.includes('€') || normalized.includes('eur') ? 'EUR' : 'CNY',
-    period: normalized.includes('年') || normalized.includes('year') || normalized.includes('/yr') ? 'year' : 'month',
-    raw
-  };
 }
 
 export function createStubAdapter(platform: 'lagou' | 'liepin' | 'linkedin', hostPatterns: string[]): PlatformAdapter {
@@ -208,7 +194,7 @@ function extractConfiguredJob(element: HTMLElement, config: DomAdapterConfig, no
       tags
     },
     location,
-    salary: salaryRaw ? parseSalary(salaryRaw) : undefined,
+    salary: salaryRaw ? parseCompensationSalary(salaryRaw) : undefined,
     description,
     requirements: tags,
     tags,

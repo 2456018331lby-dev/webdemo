@@ -8,6 +8,7 @@ import type {
   ScoreReason,
   ScoreWeights
 } from './types';
+import { scoreSalaryRange } from './compensation';
 import { clampScore, includesNormalized, normalizeText } from './text';
 import { scoreResearchSignal } from './research';
 import { defaultScoreWeights } from './types';
@@ -76,13 +77,14 @@ export function scoreJob(job: JobPosting, resume: ResumeProfile, options: ScoreO
     });
   }
 
-  const salaryScore = job.salary?.min || job.salary?.max ? weights.salary : 0;
+  const salaryMultiplier = scoreSalaryRange(job.salary);
+  const salaryScore = salaryMultiplier * weights.salary;
   if (salaryScore > 0) {
     reasons.push({
       key: 'salary',
-      label: '薪资信息完整',
+      label: '薪资等级',
       delta: salaryScore,
-      detail: job.salary?.raw ?? `${job.salary?.min ?? '?'}-${job.salary?.max ?? '?'}`
+      detail: `${job.salary?.raw ?? `${job.salary?.min ?? '?'}-${job.salary?.max ?? '?'}`}，薪资等级 ${Math.round(salaryMultiplier * 100)}`
     });
   }
 

@@ -1,4 +1,5 @@
 import type { CompanyResearchRecord, JobPosting, MoneyRange } from './types';
+import { parseCompensationSalary, scoreSalaryRange } from './compensation';
 import { includesNormalized, normalizeText, stableId } from './text';
 
 export interface ResearchParseInput {
@@ -78,7 +79,7 @@ export function parseCompanyResearch(input: ResearchParseInput): CompanyResearch
   const badRest = matchedKeywords(summary, BAD_REST_KEYWORDS);
   const annualLeave = matchedKeywords(summary, ANNUAL_LEAVE_KEYWORDS).join('、') || undefined;
   const warnings = matchedKeywords(summary, WARNING_KEYWORDS);
-  const salary = parseSalary(summary);
+  const salary = parseCompensationSalary(summary);
 
   return {
     id: stableId([input.companyName, input.jobTitle, input.sourceUrl, summary]),
@@ -190,7 +191,8 @@ export function scoreResearchSignal(job: JobPosting, records: CompanyResearchRec
 
   const salaries = uniqueValues(matchedRecords.map((matchedRecord) => formatSalary(matchedRecord.salary)));
   if (salaries.length > 0) {
-    score += 16;
+    const bestSalarySignal = Math.max(...matchedRecords.map((matchedRecord) => scoreSalaryRange(matchedRecord.salary)));
+    score += 6 + Math.round(bestSalarySignal * 14);
     reasons.push(`外部薪资：${salaries.join('、')}`);
   }
 
@@ -340,18 +342,4 @@ function uniqueValues(values: Array<string | undefined>): string[] {
 function formatSalary(salary: MoneyRange | undefined): string | undefined {
   if (!salary) return undefined;
   return salary.raw ?? `${salary.min ?? '?'}-${salary.max ?? '?'}`;
-}
-
-function parseSalary(value: string): MoneyRange | undefined {
-  const normalized = value.replace(/\s+/g, '').toLowerCase();
-  const match = normalized.match(/(\d+(?:\.\d+)?)k?(?:-|~|至)(\d+(?:\.\d+)?)k/);
-  if (!match) return undefined;
-
-  return {
-    min: Number(match[1]) * 1000,
-    max: Number(match[2]) * 1000,
-    currency: normalized.includes('$') ? 'USD' : 'CNY',
-    period: normalized.includes('年') ? 'year' : 'month',
-    raw: match[0]
-  };
 }
