@@ -2770,6 +2770,27 @@ a {
   color: var(--danger);
 }
 
+.command-outcome-callout {
+  display: grid;
+  gap: 6px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 180, 84, 0.2);
+  background: var(--warning-bg);
+}
+
+.command-outcome-callout strong {
+  color: var(--warning);
+  font-family: var(--font-display), var(--font-body), sans-serif;
+}
+
+.command-outcome-callout p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .cooldown-callout {
   display: grid;
   gap: 12px;

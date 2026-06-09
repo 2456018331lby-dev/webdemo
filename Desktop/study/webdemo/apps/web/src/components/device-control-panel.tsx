@@ -2,14 +2,27 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 
+export type RelayCommandSendResult = {
+  status: "acknowledged" | "queued";
+  note?: string;
+};
+
 type Props = {
   deviceName: string;
   deviceType?: string;
   relayOn: boolean;
   isOffline: boolean;
   commandCooldownMs?: number;
-  onSendRelayCommand: (nextValue: boolean) => Promise<void>;
+  onSendRelayCommand: (nextValue: boolean) => Promise<RelayCommandSendResult | void>;
 };
+
+type PendingCommand = {
+  targetRelayOn: boolean;
+  action: string;
+  note: string;
+};
+
+const DEFAULT_QUEUED_NOTE = "命令已排队，等待 ESP32S3 拉取、STM32H743 执行并通过上行 ack 确认。";
 
 function getDeviceIcon(type?: string): string {
   switch (type) {
@@ -30,9 +43,10 @@ export function DeviceControlPanel({
   commandCooldownMs = 0,
   onSendRelayCommand
 }: Props) {
-  const [status, setStatus] = useState<"idle" | "sending" | "ok" | "fail">("idle");
+  const [status, setStatus] = useState<"idle" | "sending" | "ok" | "queued" | "fail">("idle");
   const [errMsg, setErrMsg] = useState("");
   const [lastAction, setLastAction] = useState<string | null>(null);
+  const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null);
   const [cooldownRemainingSeconds, setCooldownRemainingSeconds] = useState(0);
 
   useEffect(() => {
@@ -47,13 +61,27 @@ export function DeviceControlPanel({
     return () => clearTimeout(timer);
   }, [cooldownRemainingSeconds]);
 
+  useEffect(() => {
+    if (!pendingCommand || relayOn !== pendingCommand.targetRelayOn) {
+      return;
+    }
+
+    setPendingCommand(null);
+    setStatus("ok");
+    setLastAction(`${pendingCommand.action}已确认`);
+
+    const timer = setTimeout(() => setStatus("idle"), 2000);
+    return () => clearTimeout(timer);
+  }, [pendingCommand, relayOn]);
+
   const cooldownSeconds = useMemo(
     () => Math.max(0, Math.ceil(commandCooldownMs / 1000)),
     [commandCooldownMs]
   );
   const isCoolingDown = cooldownRemainingSeconds > 0;
   const isBusy = status === "sending";
-  const isControlLocked = isOffline || isBusy || isCoolingDown;
+  const isWaitingForAck = Boolean(pendingCommand);
+  const isControlLocked = isOffline || isBusy || isCoolingDown || isWaitingForAck;
 
   async function toggle() {
     if (isControlLocked) return;
@@ -62,9 +90,25 @@ export function DeviceControlPanel({
     setStatus("sending");
     setErrMsg("");
     setLastAction(null);
+    setPendingCommand(null);
     try {
-      await onSendRelayCommand(next);
+      const result = await onSendRelayCommand(next);
+      if (result?.status === "queued") {
+        setStatus("queued");
+        setLastAction(`${action}已排队`);
+        setPendingCommand({
+          targetRelayOn: next,
+          action,
+          note: result.note ?? DEFAULT_QUEUED_NOTE
+        });
+        if (cooldownSeconds > 0) {
+          setCooldownRemainingSeconds(cooldownSeconds);
+        }
+        return;
+      }
+
       setStatus("ok");
+      setPendingCommand(null);
       setLastAction(`${action}成功`);
       if (cooldownSeconds > 0) {
         setCooldownRemainingSeconds(cooldownSeconds);
@@ -74,6 +118,7 @@ export function DeviceControlPanel({
       setStatus("fail");
       setErrMsg(e instanceof Error ? e.message : "命令失败");
       setLastAction(`${action}失败`);
+      setPendingCommand(null);
     }
   }
 
@@ -82,6 +127,8 @@ export function DeviceControlPanel({
     ? "⏳ 发送中..."
     : isCoolingDown
       ? `⏱️ 冷却 ${cooldownRemainingSeconds}s`
+      : isWaitingForAck
+        ? "⏳ 等待确认"
       : relayOn
         ? "🔴 关闭"
         : "🟢 开启";
@@ -90,9 +137,11 @@ export function DeviceControlPanel({
       ? "发送中..."
       : status === "ok"
         ? "✅ 已确认"
-        : status === "fail"
-          ? "❌ 失败"
-          : lastAction || "就绪";
+        : status === "queued"
+          ? "⏳ 已排队"
+          : status === "fail"
+            ? "❌ 失败"
+            : lastAction || "就绪";
 
   return (
     <section className="surface-panel control-card">
@@ -117,6 +166,13 @@ export function DeviceControlPanel({
           </button>
         </div>
       </div>
+
+      {pendingCommand ? (
+        <div className="command-outcome-callout command-outcome-callout--queued" aria-live="polite">
+          <strong>等待硬件确认</strong>
+          <p>{pendingCommand.note}</p>
+        </div>
+      ) : null}
 
       {isCoolingDown ? (
         <div className="cooldown-callout" aria-live="polite">

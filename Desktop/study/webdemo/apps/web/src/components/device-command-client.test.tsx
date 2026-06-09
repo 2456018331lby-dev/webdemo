@@ -79,4 +79,125 @@ describe("DeviceCommandClient", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("treats simulator ack ok as confirmed even when the returned command snapshot is queued", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        command: {
+          commandId: "cmd-ack-1",
+          commandType: "relay.set",
+          status: "queued",
+          requestedAt: "2026-05-10T09:01:00Z"
+        },
+        ack: {
+          result: "ok"
+        },
+        state: {
+          relayOn: true,
+          online: true,
+          lastTelemetry: "温度 24.1°C"
+        },
+        commandHistory: [
+          {
+            commandId: "cmd-ack-1",
+            commandType: "relay.set",
+            status: "acknowledged",
+            requestedAt: "2026-05-10T09:01:00Z"
+          }
+        ]
+      })
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <DeviceCommandClient
+        deviceId="d1"
+        homeName="温馨公寓"
+        roomName="客厅"
+        deviceName="主灯"
+        deviceType="relay-controller"
+        initialRelayOn={false}
+        isOffline={false}
+        initialHistory={[]}
+        initialTelemetry="温度 25°C"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /开启/ }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/已确认/).length).toBeGreaterThanOrEqual(1);
+    });
+
+    expect(screen.queryByText(/等待硬件确认/)).not.toBeInTheDocument();
+    expect(screen.getByText(/继电器控制器 · 已开启 · 在线/)).toBeInTheDocument();
+
+    vi.unstubAllGlobals();
+  });
+
+  it("shows a queued command outcome for polling delivery mode", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 202,
+      json: async () => ({
+        deliveryMode: "polling",
+        command: {
+          commandId: "cmd-polling-1",
+          commandType: "relay.set",
+          status: "queued",
+          requestedAt: "2026-05-10T09:02:00Z"
+        },
+        state: {
+          relayOn: false,
+          online: true,
+          lastTelemetry: "温度 24.1°C"
+        },
+        commandHistory: [
+          {
+            commandId: "cmd-polling-1",
+            commandType: "relay.set",
+            status: "queued",
+            requestedAt: "2026-05-10T09:02:00Z"
+          }
+        ]
+      })
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <DeviceCommandClient
+        deviceId="d1"
+        homeName="温馨公寓"
+        roomName="客厅"
+        deviceName="主灯"
+        deviceType="relay-controller"
+        initialRelayOn={false}
+        isOffline={false}
+        initialHistory={[]}
+        initialTelemetry="温度 25°C"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /开启/ }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/devices/d1/commands",
+        expect.objectContaining({ method: "POST" })
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/已排队/)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/已确认/)).not.toBeInTheDocument();
+    expect(screen.getByText(/等待硬件确认/)).toBeInTheDocument();
+    expect(screen.getByText(/继电器控制器 · 已关闭 · 在线/)).toBeInTheDocument();
+
+    vi.unstubAllGlobals();
+  });
 });

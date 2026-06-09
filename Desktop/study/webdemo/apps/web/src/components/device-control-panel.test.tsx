@@ -1,7 +1,7 @@
 import React from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DeviceControlPanel } from "./device-control-panel";
+import { DeviceControlPanel, type RelayCommandSendResult } from "./device-control-panel";
 
 function ControlledHarness({
   initialRelayOn,
@@ -11,7 +11,7 @@ function ControlledHarness({
 }: {
   initialRelayOn: boolean;
   isOffline?: boolean;
-  onSendRelayCommand?: (nextValue: boolean) => Promise<void>;
+  onSendRelayCommand?: (nextValue: boolean) => Promise<RelayCommandSendResult | void>;
   commandCooldownMs?: number;
 }) {
   const [relayOn, setRelayOn] = React.useState(initialRelayOn);
@@ -24,8 +24,11 @@ function ControlledHarness({
       isOffline={isOffline}
       commandCooldownMs={commandCooldownMs}
       onSendRelayCommand={async (nextValue) => {
-        await onSendRelayCommand(nextValue);
-        setRelayOn(nextValue);
+        const result = await onSendRelayCommand(nextValue);
+        if (!result || result.status === "acknowledged") {
+          setRelayOn(nextValue);
+        }
+        return result;
       }}
     />
   );
@@ -73,6 +76,29 @@ describe("DeviceControlPanel", () => {
     });
 
     expect(screen.getByRole("button", { name: /关闭/ })).toBeInTheDocument();
+  });
+
+  it("keeps queued commands pending instead of marking them confirmed", async () => {
+    const onSendRelayCommand = vi.fn().mockResolvedValue({
+      status: "queued",
+      note: "命令已进入 ESP32S3 轮询队列，等待设备拉取并上报确认。"
+    } satisfies RelayCommandSendResult);
+
+    render(
+      <ControlledHarness initialRelayOn={false} onSendRelayCommand={onSendRelayCommand} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /开启/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/已排队/)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/已确认/)).not.toBeInTheDocument();
+    expect(screen.getByText(/等待硬件确认/)).toBeInTheDocument();
+    expect(screen.getByText(/ESP32S3 轮询队列/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /等待确认/ })).toBeDisabled();
+    expect(screen.getByText("关")).toBeInTheDocument();
   });
 
   it("disables relay control when the device is offline", () => {

@@ -1,5 +1,33 @@
 # Progress Log
 
+## 2026-06-09 (设备控制 pending 反馈)
+
+### 优化目标
+- 衔接后端 `SMART_HOME_COMMAND_DELIVERY=polling`：网页 POST 返回 `202 queued` 时，前端不能显示“已确认”
+- 保持 desired state 和 reported state 分离：未收到硬件 ack 前，设备详情 hero 和继电器状态继续显示最后一次上报状态
+- 避免等待 ack 期间重复点击产生反向或重复命令
+
+### 代码变更
+- `DeviceControlPanel` 的 `onSendRelayCommand` 返回值升级为 `RelayCommandSendResult`
+- 控制卡新增 `queued` 状态：显示“已排队 / 等待硬件确认”，按钮锁定为“等待确认”，直到 reported relay state 到达目标值后再恢复“已确认”
+- `DeviceCommandClient` 区分三类结果：`deliveryMode=polling`、`ack.result=busy`、`ack.result=ok`
+- 修正真实 simulator 响应里 `command.status=queued` 但 `ack.result=ok` 的判断顺序，优先按 ack 和最新 history 判断，避免把已确认误判为 pending
+- CSS 新增轻量 `command-outcome-callout`，提示 ESP32S3 轮询队列和硬件 ack 等待状态
+
+### 验证
+- 先补失败用例：queued 回调仍显示“已确认”；polling POST 后控制卡没有“等待硬件确认”；真实 simulator ack ok 可能被旧 command 快照误判为 queued
+- `npm test -- --run apps/web/src/components/device-control-panel.test.tsx apps/web/src/components/device-command-client.test.tsx`：2 files / 12 tests 通过
+- `npm test -- --run`：24 files / 110 tests 通过
+- `npm run lint`：通过
+- `npm run build`：通过，`/devices/[deviceId]` page size 约 6.3 kB
+- 临时 `SMART_HOME_COMMAND_DELIVERY=polling` production smoke：`/devices/device-relay-01` 点击控制后显示“等待硬件确认”和“ESP32S3 轮询队列”，控制按钮禁用，hero 仍显示原 reported state；桌面 `scrollWidth=1280`、移动端 `scrollWidth=393`，移动端按钮宽约 271px
+- build 后已删除 `apps/web/.next/`，未保留新的截图、trace 或测试输出目录
+
+### GitHub 状态
+- 本轮仍按约定优先尝试 GitHub MCP；若继续返回 `Bad credentials`，使用 GitHub CLI Git Data API fallback 非强推发布
+
+---
+
 ## 2026-06-09 (维护文档旧交接稿清理)
 
 ### 清理范围

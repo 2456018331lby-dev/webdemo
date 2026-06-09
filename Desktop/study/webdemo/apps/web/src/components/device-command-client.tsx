@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { CommandHistoryList } from "./command-history-list";
-import { DeviceControlPanel } from "./device-control-panel";
+import { DeviceControlPanel, type RelayCommandSendResult } from "./device-control-panel";
 import {
   computeRelayCommandCooldownMs,
   formatReliabilityBandCN,
@@ -32,6 +32,22 @@ type Props = {
   isOffline: boolean;
   initialHistory?: CmdEntry[];
   initialTelemetry?: string;
+};
+
+type CommandResponsePayload = {
+  ack?: {
+    result?: string;
+  };
+  command?: {
+    status?: string;
+  };
+  commandHistory?: CmdEntry[];
+  deliveryMode?: string;
+  state?: {
+    relayOn?: boolean;
+    online?: boolean;
+    lastTelemetry?: string;
+  };
 };
 
 function getDeviceIcon(type?: string): string {
@@ -76,6 +92,37 @@ function getStatusColor(status?: "normal" | "warning" | "danger") {
     case "danger": return "danger";
     default: return "normal";
   }
+}
+
+function getRelaySendResult(payload: CommandResponsePayload): RelayCommandSendResult {
+  if (payload.deliveryMode === "polling") {
+    return {
+      status: "queued",
+      note: "命令已进入 ESP32S3 轮询队列，等待设备拉取并上报确认。"
+    };
+  }
+
+  if (payload.ack?.result === "ok") {
+    return { status: "acknowledged" };
+  }
+
+  if (payload.ack?.result === "busy") {
+    return {
+      status: "queued",
+      note: "硬件暂忙，命令已保留在重试队列，等待后续生命周期重试。"
+    };
+  }
+
+  const latestStatus = payload.commandHistory?.[0]?.status ?? payload.command?.status;
+
+  if (latestStatus === "queued" || latestStatus === "delivered") {
+    return {
+      status: "queued",
+      note: "命令尚未收到硬件 ack，当前仍显示设备最后一次上报状态。"
+    };
+  }
+
+  return { status: "acknowledged" };
 }
 
 export function DeviceCommandClient({
@@ -137,18 +184,19 @@ export function DeviceCommandClient({
   
   const toneIcon = risk === "high" ? "🔴" : risk === "medium" ? "🟡" : "🟢";
 
-  async function send(nextValue: boolean) {
+  async function send(nextValue: boolean): Promise<RelayCommandSendResult> {
     const res = await fetch(`/api/devices/${deviceId}/commands`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ commandType: "relay.set", correlationId: crypto.randomUUID(), payload: { channel: 1, value: nextValue } })
     });
     if (!res.ok) throw new Error("Command failed");
-    const p = await res.json();
+    const p = await res.json() as CommandResponsePayload;
     setRelayOn(Boolean(p.state?.relayOn));
     setOffline(!Boolean(p.state?.online));
     setTelemetryNote(p.state?.lastTelemetry ?? "");
     setHistory(p.commandHistory ?? []);
+    return getRelaySendResult(p);
   }
 
   return (
